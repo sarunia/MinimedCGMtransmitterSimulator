@@ -1,89 +1,298 @@
-#include <ArduinoBLE.h>
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEServer.h>
 
-BLEService genericAttributeService("1801");
-BLECharacteristic serviceChangedCharacteristic("2A05", BLERead | BLEIndicate, 20); // Added a third argument, value size
-BLEDescriptor clientCharacteristicConfigurationDescriptor("2902", "0000"); // Added a second argument, descriptor value
+// UUID usługi Device Information
+#define SERVICE_UUID "180A"
 
-// Device advertisement data
+// UUID charakterystyk Device Information
+#define CHARACTERISTIC_UUID_MANUFACTURER "2A29"
+#define CHARACTERISTIC_UUID_MODEL "2A24"
+#define CHARACTERISTIC_UUID_SERIAL "2A25"
+#define CHARACTERISTIC_UUID_FIRMWARE "2A26"
+#define CHARACTERISTIC_UUID_HARDWARE "2A27"
+#define CHARACTERISTIC_UUID_SOFTWARE "2A28"
+#define CHARACTERISTIC_UUID_SYSTEM_ID "2A23"
+#define CHARACTERISTIC_UUID_REG_CERT "2A2A"
+#define CHARACTERISTIC_UUID_PNP_ID "2A50"
+
+// UUID usługi Generic Access
+#define GENERIC_ACCESS_SERVICE_UUID "1800"
+
+// UUID charakterystyk Generic Access
+#define GENERIC_ACCESS_DEVICE_NAME_UUID "2A00"
+#define GENERIC_ACCESS_APPEARANCE_UUID "2A01"
+#define GENERIC_ACCESS_CONN_PARAMS_UUID "2A04"
+
+// UUID usługi Battery Service
+#define BATTERY_SERVICE_UUID "180F"
+
+// UUID charakterystyki Battery Level
+#define BATTERY_LEVEL_CHAR_UUID "2A19"
+
+// UUID deskryptora Client Characteristic Configuration
+#define CLIENT_CHAR_CONFIG_DESC_UUID "2902"
+
+// Deklaracje UUID
+#define CGM_SERVICE_UUID "0000181F-0000-1000-8000-00805F9B34FB"
+#define CGM_MEASUREMENT_CHAR_UUID "00002AA7-0000-1000-8000-00805F9B34FB"
+#define CGM_FEATURE_CHAR_UUID "00002AA8-0000-1000-8000-00805F9B34FB"
+#define CGM_STATUS_CHAR_UUID "00002AA9-0000-1000-8000-00805F9B34FB"
+#define CGM_SESSION_START_TIME_CHAR_UUID "00002AAA-0000-1000-8000-00805F9B34FB"
+#define CGM_SESSION_RUN_TIME_CHAR_UUID "00002AAB-0000-1000-8000-00805F9B34FB"
+#define RECORD_ACCESS_CONTROL_POINT_CHAR_UUID "00002A52-0000-1000-8000-00805F9B34FB"
+#define CGM_SPECIFIC_OPS_CONTROL_POINT_CHAR_UUID "00002AAC-0000-1000-8000-00805F9B34FB"
+
+
+int batteryLevel = 0x5F;
+
+// Dane discovery
 const uint8_t discoveryData[] = {
-  0x02, 0x01, 0x06, // Flags
-  0x0F, 0x09, 'C', 'G', 'M', ' ', 'G', 'T', '1', '2', '3', '4', '5', '6', '7', 'M', // Complete Local Name
-  0x04, 0xFF, 0xF9, 0x01, 0x00 // Manufacturer Specific Data
+  0x02, 0x01, 0x06,
+  0x0F, 0x09, 'C', 'G', 'M', ' ', 'G', 'T', '1', '2', '3', '4', '5', '6', '7', 'M',
+  0x04, 0xFF, 0xF9, 0x01, 0x00
 };
 
+// Dane scan response
 const uint8_t scanRspData[] = {
-  0x05, 0x02, 0x82, 0xFE, 0x1F, 0x18, // Incomplete List of 16-bit Service Class UUIDs
-  0x02, 0x0A, 0x00 // Tx Power Level
+  0x05, 0x02, 0x82, 0xFE, 0x1F, 0x18,
+  0x02, 0x0A, 0x00
 };
 
-void printData(uint8_t* data, size_t len) {
-  for (size_t i = 0; i < len; i++) {
-    Serial.print(data[i], HEX);
-    Serial.print(" ");
+// Klasa obsługująca zdarzenia serwera BLE
+class MyServerCallbacks: public BLEServerCallbacks {
+  void onConnect(BLEServer* pServer) {
+    // Wyświetlamy informację o połączeniu
+    Serial.println("Connected");
   }
-  Serial.println();
-}
 
-void onConnect(BLEDevice central) {
-  Serial.print("Connected to central: ");
-  Serial.println(central.address());
-
-  // Print UUIDs of services and characteristics
-  Serial.println("Services and characteristics of connected device:");
-  for (int i = 0; i < central.serviceCount(); i++) { // Using the serviceCount() method on the BLEDevice object
-    BLEService connectedService = central.service(i); // Using the service() method on the BLEDevice object
-    Serial.print("Service UUID: ");
-    Serial.println(connectedService.uuid());
-
-    // Print characteristics of each service
-    for (int j = 0; j < connectedService.characteristicCount(); j++) { // Using the characteristicCount() method on the BLEService object
-      BLECharacteristic characteristic = connectedService.characteristic(j); // Using the characteristic() method on the BLEService object
-      Serial.print("Characteristic UUID: ");
-      Serial.println(characteristic.uuid());
-    }
+  void onDisconnect(BLEServer* pServer) {
+    // Wyświetlamy informację o rozłączeniu
+    Serial.println("Disconnected");
   }
-}
+};
+BLEServer* pServer = NULL;          // Wskaźnik na obiekt serwera BLE, początkowo ustawiony na NULL
+BLEService* pService = NULL;        // Wskaźnik na obiekt usługi BLE, początkowo ustawiony na NULL
+BLECharacteristic* pCharacteristic = NULL;  // Wskaźnik na obiekt charakterystyki BLE, początkowo ustawiony na NULL
 
-void onDisconnect(BLEDevice central) {
-  Serial.print("Disconnected from central: ");
-  Serial.println(central.address());
-}
+BLEService* pBatteryService;
+BLECharacteristic* pBatteryLevelChar;
+BLEDescriptor* pClientCharConfigDesc;
+
+BLEService *pCGMService;
+BLECharacteristic *pCGMMeasurementChar;
+BLECharacteristic *pCGMFeatureChar;
+BLECharacteristic *pCGMStatusChar;
+BLECharacteristic *pCGMSessionStartTimeChar;
+BLECharacteristic *pCGMSessionRunTimeChar;
+BLECharacteristic *pRecordAccessControlPointChar;
+BLECharacteristic *pCGMSpecificOpsControlPointChar;
+BLEDescriptor *pCharUserDescDesc;
+
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial);
 
-  if (!BLE.begin()) {
-    Serial.println("failed to initialize BLE!");
-    while (1);
-  }
+  // Inicjalizacja BLE
+  BLEDevice::init("CGM G1234567M");
 
-  genericAttributeService.addCharacteristic(serviceChangedCharacteristic);
-  serviceChangedCharacteristic.addDescriptor(clientCharacteristicConfigurationDescriptor);
-  BLE.setAdvertisedService(genericAttributeService);
-
-  // Build advertising data packet
-  BLEAdvertisingData advData;
-  // If a packet has a raw data parameter, then all the other parameters of the packet will be ignored
-  advData.setRawData(discoveryData, sizeof(discoveryData));  
-  // Copy set parameters in the actual advertising packet
-  BLE.setAdvertisingData(advData);
-
-  // Build scan response data packet
-  BLEAdvertisingData scanData;
-  scanData.setRawData(scanRspData, sizeof(scanRspData));
-  // Copy set parameters in the actual scan response packet
-  BLE.setScanResponseData(scanData);
+  // Tworzenie serwera BLE
+  pServer = BLEDevice::createServer();
   
-  BLE.advertise();
+  // Ustawienie callbacków dla zdarzeń połączenia i rozłączenia
+  pServer->setCallbacks(new MyServerCallbacks());
 
-  Serial.println("advertising ...");
 
-  // Register callback functions for connection and disconnection events
-  BLE.setEventHandler(BLEConnected, onConnect);
-  BLE.setEventHandler(BLEDisconnected, onDisconnect);
+  /*************************************************** Utworzenie usługi Generic Access ***************************************************/
+  pService = pServer->createService(GENERIC_ACCESS_SERVICE_UUID);
+
+  // Dodanie charakterystyk do usługi Generic Access
+  pCharacteristic = pService->createCharacteristic(
+                     GENERIC_ACCESS_DEVICE_NAME_UUID,
+                     BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE
+                   );
+  pCharacteristic->setValue("CGM GT1234567M");
+
+  pCharacteristic = pService->createCharacteristic(
+                     GENERIC_ACCESS_APPEARANCE_UUID,
+                     BLECharacteristic::PROPERTY_READ
+                   );
+  pCharacteristic->setValue(String((uint16_t)0)); // Ustawienie wartości wyglądu na 0 (wartość domyślna)
+
+  pCharacteristic = pService->createCharacteristic(
+                     GENERIC_ACCESS_CONN_PARAMS_UUID,
+                     BLECharacteristic::PROPERTY_READ
+                   );
+  pCharacteristic->setValue(String((uint16_t)0)); // Ustawienie wartości parametrów połączenia na 0 (wartość domyślna)
+
+  // Uruchomienie usługi Generic Access
+  //pService->start();
+
+
+  /*************************************************** Utworzenie usługi Device Information ***************************************************/
+  pService = pServer->createService(SERVICE_UUID);
+
+  // Dodanie charakterystyk do usługi
+  pCharacteristic = pService->createCharacteristic(
+                     CHARACTERISTIC_UUID_MANUFACTURER,
+                     BLECharacteristic::PROPERTY_READ
+                   );
+  pCharacteristic->setValue("Medtronic");
+
+  pCharacteristic = pService->createCharacteristic(
+                     CHARACTERISTIC_UUID_MODEL,
+                     BLECharacteristic::PROPERTY_READ
+                   );
+  pCharacteristic->setValue("MMT-7911WW");
+
+  pCharacteristic = pService->createCharacteristic(
+                     CHARACTERISTIC_UUID_SERIAL,
+                     BLECharacteristic::PROPERTY_READ
+                   );
+  pCharacteristic->setValue("GT1234567M");
+
+  pCharacteristic = pService->createCharacteristic(
+                     CHARACTERISTIC_UUID_FIRMWARE,
+                     BLECharacteristic::PROPERTY_READ
+                   );
+  pCharacteristic->setValue("1.1A");
+
+  pCharacteristic = pService->createCharacteristic(
+                     CHARACTERISTIC_UUID_HARDWARE,
+                     BLECharacteristic::PROPERTY_READ
+                   );
+  pCharacteristic->setValue("5C1.0");
+
+  pCharacteristic = pService->createCharacteristic(
+                     CHARACTERISTIC_UUID_SOFTWARE,
+                     BLECharacteristic::PROPERTY_READ
+                   );
+  pCharacteristic->setValue("1.0A.a69cfcd7");
+
+  // Konwertowanie danych na tablicę uint8_t
+  const uint8_t systemIdData[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0xDC, 0x16, 0x02};
+
+  // Tworzenie charakterystyki System ID
+  pCharacteristic = pService->createCharacteristic(
+                     CHARACTERISTIC_UUID_SYSTEM_ID,
+                     BLECharacteristic::PROPERTY_READ
+                   );
+
+  // Ustawianie wartości charakterystyki na dane systemIdData
+  pCharacteristic->setValue(const_cast<uint8_t*>(systemIdData), sizeof(systemIdData));
+
+  // Tworzenie charakterystyki Rejestracji i Certyfikatu (REG_CERT)
+  pCharacteristic = pService->createCharacteristic(
+                     CHARACTERISTIC_UUID_REG_CERT,
+                     BLECharacteristic::PROPERTY_READ
+                   );
+
+  // Ustawianie pustej wartości dla charakterystyki REG_CERT
+  pCharacteristic->setValue("");
+
+  // Konwertowanie danych na tablicę uint8_t
+  const uint8_t pnpIdData[] = {0x01, 0xF9, 0x01, 0x00, 0x00, 0x00, 0x01};
+
+  // Tworzenie charakterystyki PnP ID
+  pCharacteristic = pService->createCharacteristic(
+                     CHARACTERISTIC_UUID_PNP_ID,
+                     BLECharacteristic::PROPERTY_READ
+                   );
+
+  // Ustawianie wartości charakterystyki na dane pnpIdData
+  pCharacteristic->setValue(const_cast<uint8_t*>(pnpIdData), sizeof(pnpIdData));
+
+  // Uruchomienie usługi
+  pService->start();
+
+
+  /*************************************************** Utworzenie usługi Battery Service ***************************************************/
+  pBatteryService = pServer->createService(BATTERY_SERVICE_UUID);
+
+  // Tworzenie charakterystyki Battery Level
+  pBatteryLevelChar = pBatteryService->createCharacteristic(
+                      BATTERY_LEVEL_CHAR_UUID,
+                      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
+                    );
+
+  // Ustawianie wartości charakterystyki Battery Level
+  pBatteryLevelChar->setValue(batteryLevel); // Level: 95 %
+
+  // Tworzenie deskryptora Client Characteristic Configuration
+  pClientCharConfigDesc = new BLEDescriptor(CLIENT_CHAR_CONFIG_DESC_UUID);
+  pBatteryLevelChar->addDescriptor(pClientCharConfigDesc);
+
+  // Uruchomienie usługi Battery Service
+  pBatteryService->start();
+
+
+
+/*************************************************** Utworzenie usługi Continuous Glucose Monitoring (CGM) ***************************************************/
+  pCGMService = pServer->createService(BLEUUID(CGM_SERVICE_UUID));
+
+  // Tworzenie charakterystyki CGM Measurement
+  pCGMMeasurementChar = pCGMService->createCharacteristic(
+    BLEUUID(CGM_MEASUREMENT_CHAR_UUID),
+    BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_INDICATE
+  );
+
+  // Dodanie deskryptorów do charakterystyki CGM Measurement
+  pCharUserDescDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2901));
+  pCharUserDescDesc->setValue("CGM Measurement");
+  pCGMMeasurementChar->addDescriptor(pCharUserDescDesc);
+
+  pClientCharConfigDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2902));
+  pCGMMeasurementChar->addDescriptor(pClientCharConfigDesc);
+
+  // Dodanie charakterystyki CGM Measurement do usługi CGM
+  pCGMService->addCharacteristic(pCGMMeasurementChar);
+
+  // Tworzenie charakterystyki CGM Feature
+  pCGMFeatureChar = pCGMService->createCharacteristic(
+    BLEUUID(CGM_FEATURE_CHAR_UUID),
+    BLECharacteristic::PROPERTY_READ
+  );
+
+  // Dodanie deskryptora do charakterystyki CGM Feature
+  pCharUserDescDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2901));
+  pCharUserDescDesc->setValue("CGM Feature");
+  pCGMFeatureChar->addDescriptor(pCharUserDescDesc);
+
+  // Dodanie charakterystyki CGM Feature do usługi CGM
+  pCGMService->addCharacteristic(pCGMFeatureChar);
+
+  // tutaj będą kolejne charakterystyki
+
+  // Uruchomienie usługi CGM
+  pCGMService->start();
+
+
+
+
+
+
+
+
+
+  // Ustawienie danych reklamowych i danych odpowiedzi na skanowanie
+  BLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
+  BLEAdvertisementData advertisementData;
+  BLEAdvertisementData scanResponseData;
+
+  // Ustawianie danych reklamowych
+  advertisementData.addData(String(reinterpret_cast<const char*>(discoveryData), sizeof(discoveryData)));
+  scanResponseData.addData(String(reinterpret_cast<const char*>(scanRspData), sizeof(scanRspData)));
+
+  pAdvertising->setAdvertisementData(advertisementData);
+  pAdvertising->setScanResponseData(scanResponseData);
+  
+  pAdvertising->start();
+  Serial.println("Advertising ...");
+
+
+
 }
 
 void loop() {
-  BLE.poll();
+  // Brak dodatkowych działań w pętli
 }
