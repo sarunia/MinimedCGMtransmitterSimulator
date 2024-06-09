@@ -51,7 +51,8 @@
 
 
 
-int batteryLevel = 0x5F;
+int batteryLevel = 0x5F; // Wartość 95% baterii nadajnika
+
 
 // Dane discovery
 const uint8_t discoveryData[] = {
@@ -85,6 +86,25 @@ BLECharacteristic *pRecordAccessControlPointChar;
 BLECharacteristic *pCGMSpecificOpsControlPointChar;
 
 BLEDescriptor *pCharUserDescDesc;
+
+
+
+// Funkcja obliczająca CRC-16-CCITT
+uint16_t calculateCRC(const uint8_t *data, size_t length) {
+    uint16_t crc = 0xFFFF; // Initial value
+    for (size_t i = 0; i < length; i++) {
+        crc ^= (uint16_t)data[i] << 8;
+        for (uint8_t j = 0; j < 8; j++) {
+            if (crc & 0x8000) {
+                crc = (crc << 1) ^ 0x1021;
+            } else {
+                crc = crc << 1;
+            }
+        }
+    }
+    return crc;
+}
+
 
 
 // Klasa obsługująca zdarzenia serwera BLE
@@ -239,24 +259,8 @@ void setup() {
 
 
 /*************************************************** Utworzenie usługi Continuous Glucose Monitoring (CGM) ***************************************************/
+  // Utworzenie usługi service dla Continuous Glucose Monitoring (CGM)
   pCGMService = pServer->createService(BLEUUID(CGM_SERVICE_UUID));
-
-  // Utworzenie usługi Continuous Glucose Monitoring (CGM)
-  pCGMService = pServer->createService(BLEUUID(CGM_SERVICE_UUID));
-
-  // Tworzenie charakterystyki CGM Measurement
-  pCGMMeasurementChar = pCGMService->createCharacteristic(
-    BLEUUID(CGM_MEASUREMENT_CHAR_UUID),
-    BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_INDICATE   // Dodałem opcję read, aby podejrzeć tablicę na telefonie
-  );
-
-  // Dodanie deskryptorów do charakterystyki CGM Measurement
-  pCharUserDescDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2901));
-  pCharUserDescDesc->setValue("CGM Measurement");
-  pCGMMeasurementChar->addDescriptor(pCharUserDescDesc);
-
-  pClientCharConfigDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2902));
-  pCGMMeasurementChar->addDescriptor(pClientCharConfigDesc);
 
   // Ustawienie wartości początkowej dla charakterystyki CGM Measurement
   //uint8_t cgmMeasurementValue[] = {0x0E, 0xC3, 0xC6, 0x00, 0x55, 0x0A, 0x00, 0x00, 0x4A, 0xE0, 0x0A, 0x00, 0x22, 0xFD};
@@ -282,15 +286,30 @@ void setup() {
       (uint8_t)(cgmQuality >> 8), (uint8_t)cgmQuality,
       (uint8_t)(e2eCRC >> 8), (uint8_t)e2eCRC
   };
+
+  // Tworzenie charakterystyki CGM Measurement dla 2AA7
+  pCGMMeasurementChar = pCGMService->createCharacteristic(
+    BLEUUID(CGM_MEASUREMENT_CHAR_UUID),
+    BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_INDICATE   // Dodałem opcję read, aby podejrzeć tablicę na telefonie
+  );
+
+  
   pCGMMeasurementChar->setValue(cgmMeasurementValue, sizeof(cgmMeasurementValue));
 
   // Dodanie charakterystyki CGM Measurement do usługi CGM
   pCGMService->addCharacteristic(pCGMMeasurementChar);
 
+  // Dodanie deskryptorów do charakterystyki CGM Measurement
+  pCharUserDescDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2901));
+  pCharUserDescDesc->setValue("CGM Measurement");
+  pCGMMeasurementChar->addDescriptor(pCharUserDescDesc);
+
+  pClientCharConfigDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2902));
+  pCGMMeasurementChar->addDescriptor(pClientCharConfigDesc);
 
 
 
-
+/*************************************************** Utworzenie usługi CGM Feature ***************************************************/
   // Dane wejściowe CGM Feature
   bool calibrationSupported = true;
   bool patientHighLowAlertsSupported = true;
@@ -347,30 +366,136 @@ void setup() {
     static_cast<uint8_t>((e2eCRC_1 >> 8) & 0xFF)
   };
 
-  // Ustawienie wartości tablicy jako setValue dla charakterystyki o UUID 2AA8
+  // Tworzenie charakterystyki 2AA8 CGM Feature
   BLECharacteristic *pCGMFeatureChar = pCGMService->createCharacteristic(
-    BLEUUID("2AA8"),
+    BLEUUID(CGM_FEATURE_CHAR_UUID),
     BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE
   );
 
+  // Ustawienie wartości charakterystyki
   pCGMFeatureChar->setValue(cgmFeatureValue, sizeof(cgmFeatureValue));
 
-
-
-
-  // Tworzenie charakterystyki CGM Feature
-  /*pCGMFeatureChar = pCGMService->createCharacteristic(
-    BLEUUID(CGM_FEATURE_CHAR_UUID),
-    BLECharacteristic::PROPERTY_READ
-  );*/
+  // Dodanie charakterystyki CGM Feature do usługi CGM
+  pCGMService->addCharacteristic(pCGMFeatureChar);
 
   // Dodanie deskryptora do charakterystyki CGM Feature
   /*pCharUserDescDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2901));
   pCharUserDescDesc->setValue("CGM Feature");
   pCGMFeatureChar->addDescriptor(pCharUserDescDesc);*/
 
-  // Dodanie charakterystyki CGM Feature do usługi CGM
-  //pCGMService->addCharacteristic(pCGMFeatureChar);
+  
+
+/*************************************************** Utworzenie usługi CGM Status ***************************************************/
+    // Dane wejściowe
+    uint16_t timeOffset_2 = 120; // 120 minut
+    uint32_t cgmStatus = 0x123456; // Przykładowe 24-bitowe dane statusu
+    uint16_t e2eCRC_2 = 0xFFFF; // E2E-CRC
+
+    // Złożenie tablicy z wartościami bajtowymi CGM Status
+    uint8_t cgmStatusValue[7];
+    cgmStatusValue[0] = static_cast<uint8_t>(timeOffset_2 & 0xFF);
+    cgmStatusValue[1] = static_cast<uint8_t>((timeOffset_2 >> 8) & 0xFF);
+    cgmStatusValue[2] = static_cast<uint8_t>(cgmStatus & 0xFF);
+    cgmStatusValue[3] = static_cast<uint8_t>((cgmStatus >> 8) & 0xFF);
+    cgmStatusValue[4] = static_cast<uint8_t>((cgmStatus >> 16) & 0xFF);
+    cgmStatusValue[5] = static_cast<uint8_t>(e2eCRC_2 & 0xFF);
+    cgmStatusValue[6] = static_cast<uint8_t>((e2eCRC_2 >> 8) & 0xFF);
+
+    // Utworzenie charakterystyki 2AA9 CGM Status
+    BLECharacteristic *pCGMStatusChar = pCGMService->createCharacteristic(
+        BLEUUID(CGM_STATUS_CHAR_UUID),
+        BLECharacteristic::PROPERTY_READ
+    );
+
+    // Ustawienie wartości charakterystyki
+    pCGMStatusChar->setValue(cgmStatusValue, sizeof(cgmStatusValue));
+
+    // Dodanie charakterystyki do usługi
+    pCGMService->addCharacteristic(pCGMStatusChar);
+
+    // Dodanie deskryptora do charakterystyki CGM Status
+    /*BLEDescriptor *pCharUserDescDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2901));
+    pCharUserDescDesc->setValue("CGM Status");
+    pCGMStatusChar->addDescriptor(pCharUserDescDesc);
+
+
+
+/*************************************************** Utworzenie usługi CGM Session Start Time ***************************************************/
+    // Dane wejściowe dla daty i czasu
+    uint16_t year = 2024;
+    uint8_t month = 6;
+    uint8_t day = 9;
+    uint8_t hours = 15;
+    uint8_t minutes = 35;
+    uint8_t seconds = 22;
+    int8_t timeZone = 1; // Adjust as needed
+    int8_t dstOffset = 0; // Adjust as needed
+
+    // Przygotowanie tablicy z danymi do ustawienia w charakterystyce
+    uint8_t sessionStartTimeValue[9];
+    sessionStartTimeValue[0] = year & 0xFF;
+    sessionStartTimeValue[1] = (year >> 8) & 0xFF;
+    sessionStartTimeValue[2] = month;
+    sessionStartTimeValue[3] = day;
+    sessionStartTimeValue[4] = hours;
+    sessionStartTimeValue[5] = minutes;
+    sessionStartTimeValue[6] = seconds;
+    sessionStartTimeValue[7] = timeZone;
+    sessionStartTimeValue[8] = dstOffset;
+
+    // Tworzenie charakterystyki 2AAA CGM Session Start Time
+    pCGMSessionStartTimeChar = pCGMService->createCharacteristic(
+        BLEUUID(CGM_SESSION_START_TIME_CHAR_UUID),
+        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE
+    );
+
+    // Ustawienie wartości początkowej dla charakterystyki
+    pCGMSessionStartTimeChar->setValue(sessionStartTimeValue, sizeof(sessionStartTimeValue));
+
+    // Dodanie charakterystyki do usługi
+    pCGMService->addCharacteristic(pCGMSessionStartTimeChar);
+
+    // Dodanie deskryptora do charakterystyki CGM Session Start Time
+    /*BLEDescriptor *pCharUserDescDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2901));
+    pCharUserDescDesc->setValue("CGM Session Start Time");
+    pCGMSessionStartTimeChar->addDescriptor(pCharUserDescDesc);
+
+    // Dodanie deskryptora do powiadomień (opcjonalne)
+    pCGMSessionStartTimeChar->addDescriptor(new BLE2902());*/
+
+
+
+/*************************************************** Utworzenie usługi CGM Session Run Time ***************************************************/
+    // Dane wejściowe
+    uint16_t sessionRunTime = 72; // Przykładowy czas trwania sesji w godzinach
+    //bool e2eCRCSupported = true; // Załóżmy, że urządzenie obsługuje E2E-CRC
+
+    // Przygotowanie tablicy z danymi do ustawienia w charakterystyce
+    uint8_t sessionRunTimeValue[4];
+    sessionRunTimeValue[0] = sessionRunTime & 0xFF;
+    sessionRunTimeValue[1] = (sessionRunTime >> 8) & 0xFF;
+
+    if (e2eCRCSupported) {
+        uint16_t crc = calculateCRC(sessionRunTimeValue, 2);
+        sessionRunTimeValue[2] = crc & 0xFF;
+        sessionRunTimeValue[3] = (crc >> 8) & 0xFF;
+    }
+
+    // Tworzenie charakterystyki CGM Session Run Time
+    pCGMSessionRunTimeChar = pCGMService->createCharacteristic(
+        BLEUUID("2AAB"),
+        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_INDICATE
+    );
+
+    // Ustawienie wartości początkowej dla charakterystyki
+    pCGMSessionRunTimeChar->setValue(sessionRunTimeValue, e2eCRCSupported ? 4 : 2);
+
+    // Dodanie deskryptora Client Characteristic Configuration
+    pClientCharConfigDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2902));
+    pCGMSessionRunTimeChar->addDescriptor(pClientCharConfigDesc);
+
+    // Dodanie charakterystyki do usługi
+    pCGMService->addCharacteristic(pCGMSessionRunTimeChar);
 
 
 
@@ -396,7 +521,7 @@ void setup() {
 
 
 
-  // Uruchomienie usługi CGM
+  // Globale ruchomienie usługi CGM
   pCGMService->start();
 
 
