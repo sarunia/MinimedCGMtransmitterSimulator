@@ -43,6 +43,13 @@
 #define RECORD_ACCESS_CONTROL_POINT_CHAR_UUID "00002A52-0000-1000-8000-00805F9B34FB"
 #define CGM_SPECIFIC_OPS_CONTROL_POINT_CHAR_UUID "00002AAC-0000-1000-8000-00805F9B34FB"
 
+// Dodatkowe UUIDs dla customowych charakterystyk
+#define CUSTOM_CHAR_1_UUID                     "00000200-0000-1000-0000-009132591325"
+#define CUSTOM_CHAR_2_UUID                     "00000201-0000-1000-0000-009132591325"
+#define CUSTOM_CHAR_3_UUID                     "00000202-0000-1000-0000-009132591325"
+#define CUSTOM_CHAR_4_UUID                     "00000203-0000-1000-0000-009132591325"
+
+
 
 int batteryLevel = 0x5F;
 
@@ -59,18 +66,7 @@ const uint8_t scanRspData[] = {
   0x02, 0x0A, 0x00
 };
 
-// Klasa obsługująca zdarzenia serwera BLE
-class MyServerCallbacks: public BLEServerCallbacks {
-  void onConnect(BLEServer* pServer) {
-    // Wyświetlamy informację o połączeniu
-    Serial.println("Connected");
-  }
 
-  void onDisconnect(BLEServer* pServer) {
-    // Wyświetlamy informację o rozłączeniu
-    Serial.println("Disconnected");
-  }
-};
 BLEServer* pServer = NULL;          // Wskaźnik na obiekt serwera BLE, początkowo ustawiony na NULL
 BLEService* pService = NULL;        // Wskaźnik na obiekt usługi BLE, początkowo ustawiony na NULL
 BLECharacteristic* pCharacteristic = NULL;  // Wskaźnik na obiekt charakterystyki BLE, początkowo ustawiony na NULL
@@ -87,7 +83,22 @@ BLECharacteristic *pCGMSessionStartTimeChar;
 BLECharacteristic *pCGMSessionRunTimeChar;
 BLECharacteristic *pRecordAccessControlPointChar;
 BLECharacteristic *pCGMSpecificOpsControlPointChar;
+
 BLEDescriptor *pCharUserDescDesc;
+
+
+// Klasa obsługująca zdarzenia serwera BLE
+class MyServerCallbacks: public BLEServerCallbacks {
+  void onConnect(BLEServer* pServer) {
+    // Wyświetlamy informację o połączeniu
+    Serial.println("Connected");
+  }
+
+  void onDisconnect(BLEServer* pServer) {
+    // Wyświetlamy informację o rozłączeniu
+    Serial.println("Disconnected");
+  }
+};
 
 
 void setup() {
@@ -230,10 +241,13 @@ void setup() {
 /*************************************************** Utworzenie usługi Continuous Glucose Monitoring (CGM) ***************************************************/
   pCGMService = pServer->createService(BLEUUID(CGM_SERVICE_UUID));
 
+  // Utworzenie usługi Continuous Glucose Monitoring (CGM)
+  pCGMService = pServer->createService(BLEUUID(CGM_SERVICE_UUID));
+
   // Tworzenie charakterystyki CGM Measurement
   pCGMMeasurementChar = pCGMService->createCharacteristic(
     BLEUUID(CGM_MEASUREMENT_CHAR_UUID),
-    BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_INDICATE
+    BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_INDICATE   // Dodałem opcję read, aby podejrzeć tablicę na telefonie
   );
 
   // Dodanie deskryptorów do charakterystyki CGM Measurement
@@ -244,24 +258,143 @@ void setup() {
   pClientCharConfigDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2902));
   pCGMMeasurementChar->addDescriptor(pClientCharConfigDesc);
 
+  // Ustawienie wartości początkowej dla charakterystyki CGM Measurement
+  //uint8_t cgmMeasurementValue[] = {0x0E, 0xC3, 0xC6, 0x00, 0x55, 0x0A, 0x00, 0x00, 0x4A, 0xE0, 0x0A, 0x00, 0x22, 0xFD};
+
+  // Dane wejściowe CGM Measurement
+  uint8_t size = 0x0E;
+  uint8_t flags = 0xC3;
+  uint16_t glucoseConcentration = 0xC600;
+  uint16_t timeOffset = 0x550A;
+  uint16_t sensorStatusAnnunciation = 0x0000;
+  uint16_t cgmTrendInformation = 0x4AE0;
+  uint16_t cgmQuality = 0x0A00;
+  uint16_t e2eCRC = 0x22FD;
+
+  // Złożenie tablicy z wartościami zmiennych wejściowych
+  uint8_t cgmMeasurementValue[] = {
+      size,
+      flags,
+      (uint8_t)(glucoseConcentration >> 8), (uint8_t)glucoseConcentration,
+      (uint8_t)(timeOffset >> 8), (uint8_t)timeOffset,
+      (uint8_t)(sensorStatusAnnunciation >> 8), (uint8_t)sensorStatusAnnunciation,
+      (uint8_t)(cgmTrendInformation >> 8), (uint8_t)cgmTrendInformation,
+      (uint8_t)(cgmQuality >> 8), (uint8_t)cgmQuality,
+      (uint8_t)(e2eCRC >> 8), (uint8_t)e2eCRC
+  };
+  pCGMMeasurementChar->setValue(cgmMeasurementValue, sizeof(cgmMeasurementValue));
+
   // Dodanie charakterystyki CGM Measurement do usługi CGM
   pCGMService->addCharacteristic(pCGMMeasurementChar);
 
-  // Tworzenie charakterystyki CGM Feature
-  pCGMFeatureChar = pCGMService->createCharacteristic(
-    BLEUUID(CGM_FEATURE_CHAR_UUID),
-    BLECharacteristic::PROPERTY_READ
+
+
+
+
+  // Dane wejściowe CGM Feature
+  bool calibrationSupported = true;
+  bool patientHighLowAlertsSupported = true;
+  bool hypoAlertsSupported = true;
+  bool hyperAlertsSupported = true;
+  bool rateOfIncreaseDecreaseAlertsSupported = true;
+  bool deviceSpecificAlertSupported = true;
+  bool sensorMalfunctionDetectionSupported = true;
+  bool sensorTemperatureHighLowDetectionSupported = true;
+  bool sensorResultHighLowDetectionSupported = true;
+  bool lowBatteryDetectionSupported = true;
+  bool sensorTypeErrorDetectionSupported = true;
+  bool generalDeviceFaultSupported = true;
+  bool e2eCRCSupported = true;
+  bool multipleBondSupported = true;
+  bool multipleSessionsSupported = true;
+  bool cgmTrendInformationSupported = true;
+  bool cgmQualitySupported = true;
+
+  // Złożenie wartości bitów w bajty CGM Feature
+  uint8_t cgmFeatureByte1 = 0;
+  cgmFeatureByte1 |= calibrationSupported ? (1 << 0) : 0;
+  cgmFeatureByte1 |= patientHighLowAlertsSupported ? (1 << 1) : 0;
+  cgmFeatureByte1 |= hypoAlertsSupported ? (1 << 2) : 0;
+  cgmFeatureByte1 |= hyperAlertsSupported ? (1 << 3) : 0;
+  cgmFeatureByte1 |= rateOfIncreaseDecreaseAlertsSupported ? (1 << 4) : 0;
+  cgmFeatureByte1 |= deviceSpecificAlertSupported ? (1 << 5) : 0;
+  cgmFeatureByte1 |= sensorMalfunctionDetectionSupported ? (1 << 6) : 0;
+  cgmFeatureByte1 |= sensorTemperatureHighLowDetectionSupported ? (1 << 7) : 0;
+
+  uint8_t cgmFeatureByte2 = 0;
+  cgmFeatureByte2 |= sensorResultHighLowDetectionSupported ? (1 << 0) : 0;
+  cgmFeatureByte2 |= lowBatteryDetectionSupported ? (1 << 1) : 0;
+  cgmFeatureByte2 |= sensorTypeErrorDetectionSupported ? (1 << 2) : 0;
+  cgmFeatureByte2 |= generalDeviceFaultSupported ? (1 << 3) : 0;
+  cgmFeatureByte2 |= e2eCRCSupported ? (1 << 4) : 0;
+  cgmFeatureByte2 |= multipleBondSupported ? (1 << 5) : 0;
+  cgmFeatureByte2 |= multipleSessionsSupported ? (1 << 6) : 0;
+  cgmFeatureByte2 |= cgmTrendInformationSupported ? (1 << 7) : 0;
+
+  uint8_t cgmFeatureByte3 = 0;
+  cgmFeatureByte3 |= cgmQualitySupported ? (1 << 0) : 0;
+
+  // Dane wejściowe
+  uint8_t cgmType = 2; // Capillary Plasma 4 bity
+  uint8_t cgmSampleLocation = 5; // Subcutaneous tissue 4 bity
+  uint16_t e2eCRC_1 = 0xFFFF; // E2E-CRC
+
+  // Złożenie tablicy z wartościami bajtowymi CGM Feature
+  uint8_t cgmFeatureValue[] = {
+    cgmFeatureByte1, cgmFeatureByte2, cgmFeatureByte3,
+    ((cgmSampleLocation & 0x0F) << 4) | (cgmType & 0x0F),
+    static_cast<uint8_t>(e2eCRC_1 & 0xFF),
+    static_cast<uint8_t>((e2eCRC_1 >> 8) & 0xFF)
+  };
+
+  // Ustawienie wartości tablicy jako setValue dla charakterystyki o UUID 2AA8
+  BLECharacteristic *pCGMFeatureChar = pCGMService->createCharacteristic(
+    BLEUUID("2AA8"),
+    BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE
   );
 
+  pCGMFeatureChar->setValue(cgmFeatureValue, sizeof(cgmFeatureValue));
+
+
+
+
+  // Tworzenie charakterystyki CGM Feature
+  /*pCGMFeatureChar = pCGMService->createCharacteristic(
+    BLEUUID(CGM_FEATURE_CHAR_UUID),
+    BLECharacteristic::PROPERTY_READ
+  );*/
+
   // Dodanie deskryptora do charakterystyki CGM Feature
-  pCharUserDescDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2901));
+  /*pCharUserDescDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2901));
   pCharUserDescDesc->setValue("CGM Feature");
-  pCGMFeatureChar->addDescriptor(pCharUserDescDesc);
+  pCGMFeatureChar->addDescriptor(pCharUserDescDesc);*/
 
   // Dodanie charakterystyki CGM Feature do usługi CGM
-  pCGMService->addCharacteristic(pCGMFeatureChar);
+  //pCGMService->addCharacteristic(pCGMFeatureChar);
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   // tutaj będą kolejne charakterystyki
+
+
+
+
+
+
+
+
+
 
   // Uruchomienie usługi CGM
   pCGMService->start();
