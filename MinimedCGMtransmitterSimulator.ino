@@ -1,6 +1,4 @@
-#include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEServer.h>
+#include <NimBLEDevice.h>
 
 // UUID usługi Device Information
 #define SERVICE_UUID "180A"
@@ -16,22 +14,15 @@
 #define CHARACTERISTIC_UUID_REG_CERT "2A2A"
 #define CHARACTERISTIC_UUID_PNP_ID "2A50"
 
-// UUID usługi Generic Access
-#define GENERIC_ACCESS_SERVICE_UUID "1800"
+// UUID dla usługi i charakterystyk Generic Access
+#define GENERIC_ACCESS_SERVICE_UUID       "00001800-0000-1000-8000-00805F9B34FB"
+#define GENERIC_ACCESS_DEVICE_NAME_UUID   "00002A00-0000-1000-8000-00805F9B34FB"
+#define GENERIC_ACCESS_APPEARANCE_UUID    "00002A01-0000-1000-8000-00805F9B34FB"
+#define GENERIC_ACCESS_CONN_PARAMS_UUID   "00002A04-0000-1000-8000-00805F9B34FB"
 
-// UUID charakterystyk Generic Access
-#define GENERIC_ACCESS_DEVICE_NAME_UUID "2A00"
-#define GENERIC_ACCESS_APPEARANCE_UUID "2A01"
-#define GENERIC_ACCESS_CONN_PARAMS_UUID "2A04"
-
-// UUID usługi Battery Service
+// UUID dla usługi i charakterystyk Battery Service
 #define BATTERY_SERVICE_UUID "180F"
-
-// UUID charakterystyki Battery Level
 #define BATTERY_LEVEL_CHAR_UUID "2A19"
-
-// UUID deskryptora Client Characteristic Configuration
-#define CLIENT_CHAR_CONFIG_DESC_UUID "2902"
 
 // Deklaracje UUID
 #define CGM_SERVICE_UUID "0000181F-0000-1000-8000-00805F9B34FB"
@@ -49,6 +40,50 @@
 #define CUSTOM_CHAR_3_UUID                     "00000202-0000-1000-0000-009132591325"
 #define CUSTOM_CHAR_4_UUID                     "00000203-0000-1000-0000-009132591325"
 
+// Definicje zmiennych na podstawie specyfikacji
+#define CGM_SPECIFIC_OPS_CONTROL_POINT_CHAR_UUID "00002AAC-0000-1000-8000-00805F9B34FB"
+#define CGM_SPECIFIC_OPS_CONTROL_POINT_NAME "CGM Specific Ops Control Point"
+#define CGM_SPECIFIC_OPS_CONTROL_POINT_SUMMARY "CGM Specific Ops Control Point Summary"
+
+// Informacje o poszczególnych polach charakterystyki
+#define CGM_OP_CODE_FIELD_NAME "Op Code"
+#define CGM_OP_CODE_FIELD_MANDATORY true
+#define CGM_OP_CODE_FIELD_FORMAT "uint8"
+#define CGM_OP_CODE_FIELD_VALUE 0x01
+
+// Enumeracje dla pola Op Code
+enum CGMOpCode {
+    RESERVED = 0,
+    SET_CGM_COMM_INTERVAL = 1,
+    GET_CGM_COMM_INTERVAL = 2,
+    CGM_COMM_INTERVAL_RESPONSE = 3,
+    SET_GLUCOSE_CALIB_VALUE = 4,
+    GET_GLUCOSE_CALIB_VALUE = 5,
+    GLUCOSE_CALIB_VALUE_RESPONSE = 6,
+    SET_PATIENT_HIGH_ALERT_LEVEL = 7,
+    GET_PATIENT_HIGH_ALERT_LEVEL = 8,
+    PATIENT_HIGH_ALERT_LEVEL_RESPONSE = 9,
+    SET_PATIENT_LOW_ALERT_LEVEL = 10,
+    GET_PATIENT_LOW_ALERT_LEVEL = 11,
+    PATIENT_LOW_ALERT_LEVEL_RESPONSE = 12,
+    SET_HYPO_ALERT_LEVEL = 13,
+    GET_HYPO_ALERT_LEVEL = 14,
+    HYPO_ALERT_LEVEL_RESPONSE = 15,
+    SET_HYPER_ALERT_LEVEL = 16,
+    GET_HYPER_ALERT_LEVEL = 17,
+    HYPER_ALERT_LEVEL_RESPONSE = 18,
+    SET_RATE_OF_DECREASE_ALERT_LEVEL = 19,
+    GET_RATE_OF_DECREASE_ALERT_LEVEL = 20,
+    RATE_OF_DECREASE_ALERT_LEVEL_RESPONSE = 21,
+    SET_RATE_OF_INCREASE_ALERT_LEVEL = 22,
+    GET_RATE_OF_INCREASE_ALERT_LEVEL = 23,
+    RATE_OF_INCREASE_ALERT_LEVEL_RESPONSE = 24,
+    RESET_DEVICE_SPECIFIC_ALERT = 25,
+    START_SESSION = 26,
+    STOP_SESSION = 27,
+    RESPONSE_CODE = 28,
+    RESERVED_FUTURE_USE = 255
+};
 
 
 int batteryLevel = 0x5F; // Wartość 95% baterii nadajnika
@@ -58,38 +93,157 @@ int batteryLevel = 0x5F; // Wartość 95% baterii nadajnika
 const uint8_t discoveryData[] = {
   0x02, 0x01, 0x06,
   0x0F, 0x09, 'C', 'G', 'M', ' ', 'G', 'T', '1', '2', '3', '4', '5', '6', '7', 'M',
-  0x04, 0xFF, 0xF9, 0x01, 0x00
+  0x04, 0xFF, 0xF9, 0x01, 0x00, 0x05, 0x02, 0x82, 0xFE, 0x1F, 0x18
 };
 
 // Dane scan response
 const uint8_t scanRspData[] = {
-  0x05, 0x02, 0x82, 0xFE, 0x1F, 0x18,
   0x02, 0x0A, 0x00
 };
 
 
-BLEServer* pServer = NULL;          // Wskaźnik na obiekt serwera BLE, początkowo ustawiony na NULL
-BLEService* pService = NULL;        // Wskaźnik na obiekt usługi BLE, początkowo ustawiony na NULL
-BLECharacteristic* pCharacteristic = NULL;  // Wskaźnik na obiekt charakterystyki BLE, początkowo ustawiony na NULL
+// Wskaźniki na obiekty NimBLE
+NimBLEServer* pServer = nullptr;          // Wskaźnik na obiekt serwera NimBLE, początkowo ustawiony na nullptr
+NimBLEService* pService = nullptr;        // Wskaźnik na obiekt usługi NimBLE, początkowo ustawiony na nullptr
+NimBLECharacteristic* pCharacteristic = nullptr;  // Wskaźnik na obiekt charakterystyki NimBLE, początkowo ustawiony na nullptr
 
-BLEService* pBatteryService;
-BLECharacteristic* pBatteryLevelChar;
-BLEDescriptor* pClientCharConfigDesc;
+NimBLEService* pBatteryService = nullptr;           // Wskaźnik na usługę baterii
+NimBLECharacteristic* pBatteryLevelChar = nullptr;  // Wskaźnik na charakterystykę poziomu baterii
+NimBLEDescriptor* pClientCharConfigDesc = nullptr;  // Wskaźnik na opis konfiguracji klienta
 
-BLEService *pCGMService;
-BLECharacteristic *pCGMMeasurementChar;
-BLECharacteristic *pCGMFeatureChar;
-BLECharacteristic *pCGMStatusChar;
-BLECharacteristic *pCGMSessionStartTimeChar;
-BLECharacteristic *pCGMSessionRunTimeChar;
-BLECharacteristic *pRecordAccessControlPointChar;
-BLECharacteristic *pCGMSpecificOpsControlPointChar;
+NimBLEService* pCGMService = nullptr;                    // Wskaźnik na usługę CGM
+NimBLECharacteristic* pCGMMeasurementChar = nullptr;     // Wskaźnik na charakterystykę pomiaru CGM
+NimBLECharacteristic* pCGMFeatureChar = nullptr;         // Wskaźnik na charakterystykę funkcji CGM
+NimBLECharacteristic* pCGMStatusChar = nullptr;          // Wskaźnik na charakterystykę statusu CGM
+NimBLECharacteristic* pCGMSessionStartTimeChar = nullptr; // Wskaźnik na charakterystykę czasu rozpoczęcia sesji CGM
+NimBLECharacteristic* pCGMSessionRunTimeChar = nullptr;  // Wskaźnik na charakterystykę czasu trwania sesji CGM
+NimBLECharacteristic* pRecordAccessControlPointChar = nullptr; // Wskaźnik na charakterystykę punktu kontroli dostępu do rekordów
+NimBLECharacteristic* pCGMSpecificOpsControlPointChar = nullptr; // Wskaźnik na charakterystykę specyficznych operacji CGM
 
-BLEDescriptor *pCharUserDescDesc;
+NimBLEDescriptor* pCharUserDescDesc = nullptr;  // Wskaźnik na opis użytkownika charakterystyki
 
 
 
-// Funkcja obliczająca CRC-16-CCITT
+
+// Opcje parowania i bondingu
+bool bonding = true; // Czy włączyć bonding (zapamiętywanie połączeń)
+bool mitm = true;    // Czy włączyć ochronę przed atakami typu Man-In-The-Middle (MITM)
+bool sc = true;      // Czy włączyć Secure Connections (zabezpieczone połączenia)
+uint8_t keySize = 16; // Rozmiar klucza szyfrowania (16 bajtów)
+
+// Klasyfikacja kluczy do parowania i bondingu
+uint8_t initKey = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK | ESP_BLE_CSR_KEY_MASK; // Klucz inicjujący
+uint8_t respKey = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK | ESP_BLE_CSR_KEY_MASK; // Klucz odpowiedzi
+
+// Klasa callbacków bezpieczeństwa
+class MySecurityCallbacks : public NimBLESecurityCallbacks {
+  uint32_t onPassKeyRequest() override {
+    Serial.println("PassKeyRequest");
+    return 446202; // Domyślna wartość klucza
+  }
+
+  bool onConfirmPIN(uint32_t pass_key) override {
+    Serial.print("onConfirmPIN: ");
+    Serial.println(pass_key);
+    return true;
+  }
+
+  void onPassKeyNotify(uint32_t pass_key) override {
+    Serial.print("PassKeyNotify: ");
+    Serial.println(pass_key);
+  }
+
+  bool onSecurityRequest() override {
+    Serial.println("SecurityRequest");
+    return true;
+  }
+
+  void onAuthenticationComplete(ble_gap_conn_desc* desc) override {
+    Serial.println("AuthenticationComplete");
+    if (!desc->sec_state.encrypted) {
+      Serial.println("Encryption failed");
+    } else {
+      Serial.println("Encryption successful");
+      Serial.print("Auth Mode: ");
+      Serial.println(desc->sec_state.authenticated);
+      Serial.print("Bonded: ");
+      Serial.println(desc->sec_state.bonded);
+    }
+  }
+};
+
+// Klasa callbacków serwera
+class MyServerCallbacks : public NimBLEServerCallbacks {
+  void onConnect(NimBLEServer* pServer) override {
+    Serial.println("Client connected");
+  }
+
+  void onDisconnect(NimBLEServer* pServer) override {
+    Serial.println("Client disconnected");
+  }
+
+  void onMTUChange(uint16_t MTU, ble_gap_conn_desc* desc) override {
+    Serial.print("MTU updated: ");
+    Serial.println(MTU);
+  }
+};
+
+// Klasa callbacków charakterystyki
+class MyCharacteristicCallbacks : public NimBLECharacteristicCallbacks {
+  void onRead(NimBLECharacteristic* pCharacteristic) override {
+    Serial.print("Characteristic ");
+    Serial.print(pCharacteristic->getUUID().toString().c_str());
+    Serial.println(" read");
+  }
+
+  void onWrite(NimBLECharacteristic* pCharacteristic) override {
+    Serial.print("Characteristic ");
+    Serial.print(pCharacteristic->getUUID().toString().c_str());
+    Serial.println(" written");
+
+    std::string value = pCharacteristic->getValue();
+    Serial.print("Value: ");
+    for (int i = 0; i < value.length(); i++) {
+      Serial.print(value[i], HEX);
+      Serial.print(" ");
+    }
+    Serial.println();
+  }
+
+  void onNotify(NimBLECharacteristic* pCharacteristic) override {
+    Serial.print("Characteristic ");
+    Serial.print(pCharacteristic->getUUID().toString().c_str());
+    Serial.println(" notify");
+  }
+
+  void onStatus(NimBLECharacteristic* pCharacteristic, Status status, int code) override {
+    Serial.print("Characteristic ");
+    Serial.print(pCharacteristic->getUUID().toString().c_str());
+    Serial.print(" status: ");
+    Serial.print(status);
+    Serial.print(" code: ");
+    Serial.println(code);
+  }
+
+  void onSubscribe(NimBLECharacteristic* pCharacteristic, ble_gap_conn_desc* desc, uint16_t subValue) override {
+    Serial.print("Client subscribed to ");
+    Serial.print(pCharacteristic->getUUID().toString().c_str());
+    Serial.print(" with value ");
+    Serial.println(subValue);
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+// Funkcja obliczająca CRC-16-CCITT tak na razie tylko
 uint16_t calculateCRC(const uint8_t *data, size_t length) {
     uint16_t crc = 0xFFFF; // Initial value
     for (size_t i = 0; i < length; i++) {
@@ -106,286 +260,307 @@ uint16_t calculateCRC(const uint8_t *data, size_t length) {
 }
 
 
+void createGenericAccessService(NimBLEServer* pServer) {
+    NimBLEService* pService;
+    NimBLECharacteristic* pCharacteristic;
 
-// Klasa obsługująca zdarzenia serwera BLE
-class MyServerCallbacks: public BLEServerCallbacks {
-  void onConnect(BLEServer* pServer) {
-    // Wyświetlamy informację o połączeniu
-    Serial.println("Connected");
-  }
+    pService = pServer->createService(GENERIC_ACCESS_SERVICE_UUID); // 1800
 
-  void onDisconnect(BLEServer* pServer) {
-    // Wyświetlamy informację o rozłączeniu
-    Serial.println("Disconnected");
-  }
-};
+    // Dodanie charakterystyk do usługi Generic Access
+    pCharacteristic = pService->createCharacteristic(
+        GENERIC_ACCESS_DEVICE_NAME_UUID, // 2A00
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE
+    );
+    pCharacteristic->setValue("CGM Transmitter");
 
+    pCharacteristic = pService->createCharacteristic(
+        GENERIC_ACCESS_APPEARANCE_UUID,  // 2A01
+        NIMBLE_PROPERTY::READ
+    );
+    uint16_t appearance = 0; // Ustawienie wartości wyglądu na 0 (wartość domyślna)
+    pCharacteristic->setValue((uint8_t*)&appearance, sizeof(appearance));
 
-void setup() {
-  Serial.begin(115200);
+    pCharacteristic = pService->createCharacteristic(
+        GENERIC_ACCESS_CONN_PARAMS_UUID, // 2A04
+        NIMBLE_PROPERTY::READ
+    );
+    // Konwertowanie danych na tablicę uint8_t
+    const uint8_t peripheralConnData[] = {0x10, 0x00, 0x20, 0x00, 0x00, 0x00, 0x58, 0x02}; // "Minimum Connection Interval: 16\nMaximum Connection Interval: 32\nSlave Latency: 0\nConnection Supervision Timeout Multiplier: 600"
+    pCharacteristic->setValue(peripheralConnData, sizeof(peripheralConnData));
 
-  // Inicjalizacja BLE
-  BLEDevice::init("CGM G1234567M");
+    // Uruchomienie usługi Generic Access
+    pService->start();
+}
 
-  // Tworzenie serwera BLE
-  pServer = BLEDevice::createServer();
-  
-  // Ustawienie callbacków dla zdarzeń połączenia i rozłączenia
-  pServer->setCallbacks(new MyServerCallbacks());
+void createDeviceInformationService(NimBLEServer* pServer) {
+    NimBLEService* pService;
+    NimBLECharacteristic* pCharacteristic;
 
+    /***************************************************
+     * Utworzenie usługi Device Information
+     ***************************************************/
+    pService = pServer->createService(SERVICE_UUID);
 
-  /*************************************************** Utworzenie usługi Generic Access ***************************************************/
-  pService = pServer->createService(GENERIC_ACCESS_SERVICE_UUID);
+    // Dodanie charakterystyk do usługi
+    pCharacteristic = pService->createCharacteristic(
+        CHARACTERISTIC_UUID_MANUFACTURER,
+        NIMBLE_PROPERTY::READ
+    );
+    pCharacteristic->setValue("Medtronic");
 
-  // Dodanie charakterystyk do usługi Generic Access
-  pCharacteristic = pService->createCharacteristic(
-                     GENERIC_ACCESS_DEVICE_NAME_UUID,
-                     BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE
-                   );
-  pCharacteristic->setValue("CGM GT1234567M");
+    pCharacteristic = pService->createCharacteristic(
+        CHARACTERISTIC_UUID_MODEL,
+        NIMBLE_PROPERTY::READ
+    );
+    pCharacteristic->setValue("MMT-7911WW");
 
-  pCharacteristic = pService->createCharacteristic(
-                     GENERIC_ACCESS_APPEARANCE_UUID,
-                     BLECharacteristic::PROPERTY_READ
-                   );
-  pCharacteristic->setValue(String((uint16_t)0)); // Ustawienie wartości wyglądu na 0 (wartość domyślna)
+    pCharacteristic = pService->createCharacteristic(
+        CHARACTERISTIC_UUID_SERIAL,
+        NIMBLE_PROPERTY::READ
+    );
+    pCharacteristic->setValue("GT1234567M");
 
-  pCharacteristic = pService->createCharacteristic(
-                     GENERIC_ACCESS_CONN_PARAMS_UUID,
-                     BLECharacteristic::PROPERTY_READ
-                   );
-  pCharacteristic->setValue(String((uint16_t)0)); // Ustawienie wartości parametrów połączenia na 0 (wartość domyślna)
+    pCharacteristic = pService->createCharacteristic(
+        CHARACTERISTIC_UUID_FIRMWARE,
+        NIMBLE_PROPERTY::READ
+    );
+    pCharacteristic->setValue("1.1A");
 
-  // Uruchomienie usługi Generic Access
-  //pService->start();
+    pCharacteristic = pService->createCharacteristic(
+        CHARACTERISTIC_UUID_HARDWARE,
+        NIMBLE_PROPERTY::READ
+    );
+    pCharacteristic->setValue("5C1.0");
 
+    pCharacteristic = pService->createCharacteristic(
+        CHARACTERISTIC_UUID_SOFTWARE,
+        NIMBLE_PROPERTY::READ
+    );
+    pCharacteristic->setValue("1.0A.a69cfcd7");
 
-  /*************************************************** Utworzenie usługi Device Information ***************************************************/
-  pService = pServer->createService(SERVICE_UUID);
+    // Konwertowanie danych na tablicę uint8_t
+    const uint8_t systemIdData[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0xDC, 0x16, 0x02};
 
-  // Dodanie charakterystyk do usługi
-  pCharacteristic = pService->createCharacteristic(
-                     CHARACTERISTIC_UUID_MANUFACTURER,
-                     BLECharacteristic::PROPERTY_READ
-                   );
-  pCharacteristic->setValue("Medtronic");
+    // Tworzenie charakterystyki System ID
+    pCharacteristic = pService->createCharacteristic(
+        CHARACTERISTIC_UUID_SYSTEM_ID,
+        NIMBLE_PROPERTY::READ
+    );
+    // Ustawianie wartości charakterystyki na dane systemIdData
+    pCharacteristic->setValue(const_cast<uint8_t*>(systemIdData), sizeof(systemIdData));
 
-  pCharacteristic = pService->createCharacteristic(
-                     CHARACTERISTIC_UUID_MODEL,
-                     BLECharacteristic::PROPERTY_READ
-                   );
-  pCharacteristic->setValue("MMT-7911WW");
+    // Tworzenie charakterystyki Rejestracji i Certyfikatu (REG_CERT)
+    pCharacteristic = pService->createCharacteristic(
+        CHARACTERISTIC_UUID_REG_CERT,
+        NIMBLE_PROPERTY::READ
+    );
+    // Ustawianie pustej wartości dla charakterystyki REG_CERT
+    pCharacteristic->setValue("");
 
-  pCharacteristic = pService->createCharacteristic(
-                     CHARACTERISTIC_UUID_SERIAL,
-                     BLECharacteristic::PROPERTY_READ
-                   );
-  pCharacteristic->setValue("GT1234567M");
+    // Konwertowanie danych na tablicę uint8_t
+    const uint8_t pnpIdData[] = {0x01, 0xF9, 0x01, 0x00, 0x00, 0x00, 0x01};
 
-  pCharacteristic = pService->createCharacteristic(
-                     CHARACTERISTIC_UUID_FIRMWARE,
-                     BLECharacteristic::PROPERTY_READ
-                   );
-  pCharacteristic->setValue("1.1A");
+    // Tworzenie charakterystyki PnP ID
+    pCharacteristic = pService->createCharacteristic(
+        CHARACTERISTIC_UUID_PNP_ID,
+        NIMBLE_PROPERTY::READ
+    );
+    // Ustawianie wartości charakterystyki na dane pnpIdData
+    pCharacteristic->setValue(const_cast<uint8_t*>(pnpIdData), sizeof(pnpIdData));
 
-  pCharacteristic = pService->createCharacteristic(
-                     CHARACTERISTIC_UUID_HARDWARE,
-                     BLECharacteristic::PROPERTY_READ
-                   );
-  pCharacteristic->setValue("5C1.0");
-
-  pCharacteristic = pService->createCharacteristic(
-                     CHARACTERISTIC_UUID_SOFTWARE,
-                     BLECharacteristic::PROPERTY_READ
-                   );
-  pCharacteristic->setValue("1.0A.a69cfcd7");
-
-  // Konwertowanie danych na tablicę uint8_t
-  const uint8_t systemIdData[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0xDC, 0x16, 0x02};
-
-  // Tworzenie charakterystyki System ID
-  pCharacteristic = pService->createCharacteristic(
-                     CHARACTERISTIC_UUID_SYSTEM_ID,
-                     BLECharacteristic::PROPERTY_READ
-                   );
-
-  // Ustawianie wartości charakterystyki na dane systemIdData
-  pCharacteristic->setValue(const_cast<uint8_t*>(systemIdData), sizeof(systemIdData));
-
-  // Tworzenie charakterystyki Rejestracji i Certyfikatu (REG_CERT)
-  pCharacteristic = pService->createCharacteristic(
-                     CHARACTERISTIC_UUID_REG_CERT,
-                     BLECharacteristic::PROPERTY_READ
-                   );
-
-  // Ustawianie pustej wartości dla charakterystyki REG_CERT
-  pCharacteristic->setValue("");
-
-  // Konwertowanie danych na tablicę uint8_t
-  const uint8_t pnpIdData[] = {0x01, 0xF9, 0x01, 0x00, 0x00, 0x00, 0x01};
-
-  // Tworzenie charakterystyki PnP ID
-  pCharacteristic = pService->createCharacteristic(
-                     CHARACTERISTIC_UUID_PNP_ID,
-                     BLECharacteristic::PROPERTY_READ
-                   );
-
-  // Ustawianie wartości charakterystyki na dane pnpIdData
-  pCharacteristic->setValue(const_cast<uint8_t*>(pnpIdData), sizeof(pnpIdData));
-
-  // Uruchomienie usługi
-  pService->start();
+    // Uruchomienie usługi
+    pService->start();
+}
 
 
-  /*************************************************** Utworzenie usługi Battery Service ***************************************************/
-  pBatteryService = pServer->createService(BATTERY_SERVICE_UUID);
+void createBatteryService(NimBLEServer* pServer, uint8_t batteryLevel) {
+    // Utworzenie usługi Battery Service
+    NimBLEService* pBatteryService = pServer->createService(BATTERY_SERVICE_UUID);
 
-  // Tworzenie charakterystyki Battery Level
-  pBatteryLevelChar = pBatteryService->createCharacteristic(
-                      BATTERY_LEVEL_CHAR_UUID,
-                      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
-                    );
+    // Tworzenie charakterystyki Battery Level
+    NimBLECharacteristic* pBatteryLevelChar = pBatteryService->createCharacteristic(
+        BATTERY_LEVEL_CHAR_UUID,
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY // Właściwości charakterystyki
+    );
 
-  // Ustawianie wartości charakterystyki Battery Level
-  pBatteryLevelChar->setValue(batteryLevel); // Level: 95 %
+    // Ustawianie wartości charakterystyki Battery Level
+    pBatteryLevelChar->setValue(&batteryLevel, 1); // Ustawienie poziomu baterii
 
-  // Tworzenie deskryptora Client Characteristic Configuration
-  pClientCharConfigDesc = new BLEDescriptor(CLIENT_CHAR_CONFIG_DESC_UUID);
-  pBatteryLevelChar->addDescriptor(pClientCharConfigDesc);
+    // Tworzenie deskryptora Client Characteristic Configuration (CCC)
+    NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
+        "2902", // UUID deskryptora CCC
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości deskryptora
+        2 // Długość deskryptora
+    );
+    //pBatteryLevelChar->addDescriptor(pClientCharConfigDesc);
 
-  // Uruchomienie usługi Battery Service
-  pBatteryService->start();
+    // Uruchomienie usługi Battery Service
+    pBatteryService->start();
+}
 
 
 
-/*************************************************** Utworzenie usługi Continuous Glucose Monitoring (CGM) ***************************************************/
-  // Utworzenie usługi service dla Continuous Glucose Monitoring (CGM)
-  pCGMService = pServer->createService(BLEUUID(CGM_SERVICE_UUID));
+void createCGMMeasurement(NimBLEService* pCGMService, NimBLECharacteristic* pCGMMeasurementChar) {
+    // Ustawienie wartości początkowej dla charakterystyki CGM Measurement
+    uint8_t size = 0x0E;  // Rozmiar danych pomiarowych (14 bajtów)
+    uint8_t flags = 0xC3;  // Flaga danych pomiarowych
 
-  // Ustawienie wartości początkowej dla charakterystyki CGM Measurement
-  //uint8_t cgmMeasurementValue[] = {0x0E, 0xC3, 0xC6, 0x00, 0x55, 0x0A, 0x00, 0x00, 0x4A, 0xE0, 0x0A, 0x00, 0x22, 0xFD};
+    uint16_t glucoseConcentration = 0xC600;  // Stężenie glukozy (mg/dL)
+    uint16_t timeOffset = 0x550A;  // Przesunięcie czasowe
 
-  // Dane wejściowe CGM Measurement
-  uint8_t size = 0x0E;
-  uint8_t flags = 0xC3;
-  uint16_t glucoseConcentration = 0xC600;
-  uint16_t timeOffset = 0x550A;
-  uint16_t sensorStatusAnnunciation = 0x0000;
-  uint16_t cgmTrendInformation = 0x4AE0;
-  uint16_t cgmQuality = 0x0A00;
-  uint16_t e2eCRC = 0x22FD;
+    uint16_t sensorStatusAnnunciation = 0x0000;  // Zgłoszenie stanu sensora
+    uint16_t cgmTrendInformation = 0x4AE0;  // Informacja o trendach CGM
+    uint16_t cgmQuality = 0x0A00;  // Jakość CGM
 
-  // Złożenie tablicy z wartościami zmiennych wejściowych
-  uint8_t cgmMeasurementValue[] = {
-      size,
-      flags,
-      (uint8_t)(glucoseConcentration >> 8), (uint8_t)glucoseConcentration,
-      (uint8_t)(timeOffset >> 8), (uint8_t)timeOffset,
-      (uint8_t)(sensorStatusAnnunciation >> 8), (uint8_t)sensorStatusAnnunciation,
-      (uint8_t)(cgmTrendInformation >> 8), (uint8_t)cgmTrendInformation,
-      (uint8_t)(cgmQuality >> 8), (uint8_t)cgmQuality,
-      (uint8_t)(e2eCRC >> 8), (uint8_t)e2eCRC
-  };
+    uint16_t e2eCRC = 0x22FD;  // E2E-CRC
 
-  // Tworzenie charakterystyki CGM Measurement dla 2AA7
-  pCGMMeasurementChar = pCGMService->createCharacteristic(
-    BLEUUID(CGM_MEASUREMENT_CHAR_UUID),
-    BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_INDICATE   // Dodałem opcję read, aby podejrzeć tablicę na telefonie
-  );
+    // Złożenie tablicy z wartościami zmiennych wejściowych
+    uint8_t cgmMeasurementValue[] = {
+        size,  // Rozmiar danych
+        flags,  // Flaga danych
+        (uint8_t)(glucoseConcentration >> 8), (uint8_t)glucoseConcentration,  // Stężenie glukozy (mg/dL)
+        (uint8_t)(timeOffset >> 8), (uint8_t)timeOffset,  // Przesunięcie czasowe
+        (uint8_t)(sensorStatusAnnunciation >> 8), (uint8_t)sensorStatusAnnunciation,  // Zgłoszenie stanu sensora
+        (uint8_t)(cgmTrendInformation >> 8), (uint8_t)cgmTrendInformation,  // Informacja o trendach CGM
+        (uint8_t)(cgmQuality >> 8), (uint8_t)cgmQuality,  // Jakość CGM
+        (uint8_t)(e2eCRC >> 8), (uint8_t)e2eCRC  // E2E-CRC
+    };
 
-  
-  pCGMMeasurementChar->setValue(cgmMeasurementValue, sizeof(cgmMeasurementValue));
+    // Tworzenie charakterystyki CGM Measurement dla 2AA7
+    pCGMMeasurementChar = pCGMService->createCharacteristic(
+        CGM_MEASUREMENT_CHAR_UUID,
+        NIMBLE_PROPERTY::NOTIFY | NIMBLE_PROPERTY::INDICATE | NIMBLE_PROPERTY::READ // Dodałem READ, aby podejrzeć tablicę na telefonie
+    );
 
-  // Dodanie charakterystyki CGM Measurement do usługi CGM
-  pCGMService->addCharacteristic(pCGMMeasurementChar);
+    pCGMMeasurementChar->setValue(cgmMeasurementValue, sizeof(cgmMeasurementValue));
 
-  // Dodanie deskryptorów do charakterystyki CGM Measurement
-  pCharUserDescDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2901));
-  pCharUserDescDesc->setValue("CGM Measurement");
-  pCGMMeasurementChar->addDescriptor(pCharUserDescDesc);
+    // Utworzenie deskryptora User Description do charakterystyki CGM Measurement
+    NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
+        "2901",
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE,  // Właściwości deskryptora
+        20  // Maksymalna długość deskryptora
+    );
 
-  pClientCharConfigDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2902));
-  pCGMMeasurementChar->addDescriptor(pClientCharConfigDesc);
+    // Ustawienie wartości deskryptora
+    pCharUserDescDesc->setValue("CGM Measurement");
+
+    // Dodanie deskryptora do charakterystyki CGM Measurement
+    pCGMMeasurementChar->addDescriptor(pCharUserDescDesc);
+
+    // Utworzenie deskryptora Client Characteristic Configuration
+    NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
+        "2902",
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE,  // Właściwości deskryptora
+        2  // Maksymalna długość deskryptora
+    );
+
+    // Ustawienie wartości deskryptora
+    pClientCharConfigDesc->setValue("Client Characteristic Configuration");
+}
+
+void createCustomCharacteristic(NimBLEService* pCGMService, NimBLECharacteristic*& pCustomCharacteristic) {
+    // Tworzenie charakterystyki o UUID 00000200-0000-1000-0000-009132591325
+    pCustomCharacteristic = pCGMService->createCharacteristic(
+        "00000200-0000-1000-0000-009132591325",
+        NIMBLE_PROPERTY::READ
+    );
+
+    // Utworzenie deskryptora User Description o UUID 2901 do charakterystyki
+    NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
+        "2901",
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE,  // Właściwości deskryptora: odczyt i zapis
+        20  // Maksymalna długość deskryptora
+    );
+
+    // Ustawienie wartości deskryptora User Description
+    pCharUserDescDesc->setValue("Characteristic User Description");
+
+    // Dodanie deskryptora User Description do charakterystyki
+    pCustomCharacteristic->addDescriptor(pCharUserDescDesc);
+}
 
 
+void createCGMFeature(NimBLEService* pCGMService, NimBLECharacteristic* pCGMFeatureChar) {
+    // Dane wejściowe CGM Feature
+    bool calibrationSupported = true;                    // Kalibracja wspierana
+    bool patientHighLowAlertsSupported = true;           // Alarmy wysokiego/niskiego poziomu glukozy wspierane
+    bool hypoAlertsSupported = true;                     // Alarmy hipoglikemii wspierane
+    bool hyperAlertsSupported = true;                    // Alarmy hiperglikemii wspierane
+    bool rateOfIncreaseDecreaseAlertsSupported = true;   // Alarmy szybkości wzrostu/spadku wspierane
+    bool deviceSpecificAlertSupported = true;            // Specyficzne alarmy urządzenia wspierane
+    bool sensorMalfunctionDetectionSupported = true;     // Wykrywanie awarii sensora wspierane
+    bool sensorTemperatureHighLowDetectionSupported = true; // Wykrywanie wysokiej/niskiej temperatury sensora wspierane
+    bool sensorResultHighLowDetectionSupported = true;   // Wykrywanie wysokiego/niskiego wyniku sensora wspierane
+    bool lowBatteryDetectionSupported = true;            // Wykrywanie niskiego poziomu baterii wspierane
+    bool sensorTypeErrorDetectionSupported = true;       // Wykrywanie błędów typu sensora wspierane
+    bool generalDeviceFaultSupported = true;             // Ogólne wykrywanie błędów urządzenia wspierane
+    bool e2eCRCSupported = true;                         // Wspieranie e2e-CRC
+    bool multipleBondSupported = true;                   // Wspieranie wielokrotnego parowania
+    bool multipleSessionsSupported = true;               // Wspieranie wielokrotnych sesji
+    bool cgmTrendInformationSupported = true;            // Wspieranie informacji o trendach CGM
+    bool cgmQualitySupported = true;                     // Wspieranie jakości CGM
 
-/*************************************************** Utworzenie usługi CGM Feature ***************************************************/
-  // Dane wejściowe CGM Feature
-  bool calibrationSupported = true;
-  bool patientHighLowAlertsSupported = true;
-  bool hypoAlertsSupported = true;
-  bool hyperAlertsSupported = true;
-  bool rateOfIncreaseDecreaseAlertsSupported = true;
-  bool deviceSpecificAlertSupported = true;
-  bool sensorMalfunctionDetectionSupported = true;
-  bool sensorTemperatureHighLowDetectionSupported = true;
-  bool sensorResultHighLowDetectionSupported = true;
-  bool lowBatteryDetectionSupported = true;
-  bool sensorTypeErrorDetectionSupported = true;
-  bool generalDeviceFaultSupported = true;
-  bool e2eCRCSupported = true;
-  bool multipleBondSupported = true;
-  bool multipleSessionsSupported = true;
-  bool cgmTrendInformationSupported = true;
-  bool cgmQualitySupported = true;
 
-  // Złożenie wartości bitów w bajty CGM Feature
-  uint8_t cgmFeatureByte1 = 0;
-  cgmFeatureByte1 |= calibrationSupported ? (1 << 0) : 0;
-  cgmFeatureByte1 |= patientHighLowAlertsSupported ? (1 << 1) : 0;
-  cgmFeatureByte1 |= hypoAlertsSupported ? (1 << 2) : 0;
-  cgmFeatureByte1 |= hyperAlertsSupported ? (1 << 3) : 0;
-  cgmFeatureByte1 |= rateOfIncreaseDecreaseAlertsSupported ? (1 << 4) : 0;
-  cgmFeatureByte1 |= deviceSpecificAlertSupported ? (1 << 5) : 0;
-  cgmFeatureByte1 |= sensorMalfunctionDetectionSupported ? (1 << 6) : 0;
-  cgmFeatureByte1 |= sensorTemperatureHighLowDetectionSupported ? (1 << 7) : 0;
+    // Złożenie wartości bitów w bajty CGM Feature
+    uint8_t cgmFeatureByte1 = 0;  // Pierwszy bajt cechy CGM
+    cgmFeatureByte1 |= calibrationSupported ? (1 << 0) : 0;  // Kalibracja wspierana
+    cgmFeatureByte1 |= patientHighLowAlertsSupported ? (1 << 1) : 0;  // Alarmy wysokiego/niskiego poziomu glukozy wspierane
+    cgmFeatureByte1 |= hypoAlertsSupported ? (1 << 2) : 0;  // Alarmy hipoglikemii wspierane
+    cgmFeatureByte1 |= hyperAlertsSupported ? (1 << 3) : 0;  // Alarmy hiperglikemii wspierane
+    cgmFeatureByte1 |= rateOfIncreaseDecreaseAlertsSupported ? (1 << 4) : 0;  // Alarmy szybkości wzrostu/spadku wspierane
+    cgmFeatureByte1 |= deviceSpecificAlertSupported ? (1 << 5) : 0;  // Specyficzne alarmy urządzenia wspierane
+    cgmFeatureByte1 |= sensorMalfunctionDetectionSupported ? (1 << 6) : 0;  // Wykrywanie awarii sensora wspierane
+    cgmFeatureByte1 |= sensorTemperatureHighLowDetectionSupported ? (1 << 7) : 0;  // Wykrywanie wysokiej/niskiej temperatury sensora wspierane
 
-  uint8_t cgmFeatureByte2 = 0;
-  cgmFeatureByte2 |= sensorResultHighLowDetectionSupported ? (1 << 0) : 0;
-  cgmFeatureByte2 |= lowBatteryDetectionSupported ? (1 << 1) : 0;
-  cgmFeatureByte2 |= sensorTypeErrorDetectionSupported ? (1 << 2) : 0;
-  cgmFeatureByte2 |= generalDeviceFaultSupported ? (1 << 3) : 0;
-  cgmFeatureByte2 |= e2eCRCSupported ? (1 << 4) : 0;
-  cgmFeatureByte2 |= multipleBondSupported ? (1 << 5) : 0;
-  cgmFeatureByte2 |= multipleSessionsSupported ? (1 << 6) : 0;
-  cgmFeatureByte2 |= cgmTrendInformationSupported ? (1 << 7) : 0;
+    uint8_t cgmFeatureByte2 = 0;  // Drugi bajt cechy CGM
+    cgmFeatureByte2 |= sensorResultHighLowDetectionSupported ? (1 << 0) : 0;  // Wykrywanie wysokiego/niskiego wyniku sensora wspierane
+    cgmFeatureByte2 |= lowBatteryDetectionSupported ? (1 << 1) : 0;  // Wykrywanie niskiego poziomu baterii wspierane
+    cgmFeatureByte2 |= sensorTypeErrorDetectionSupported ? (1 << 2) : 0;  // Wykrywanie błędów typu sensora wspierane
+    cgmFeatureByte2 |= generalDeviceFaultSupported ? (1 << 3) : 0;  // Ogólne wykrywanie błędów urządzenia wspierane
+    cgmFeatureByte2 |= e2eCRCSupported ? (1 << 4) : 0;  // Wspieranie e2e-CRC
+    cgmFeatureByte2 |= multipleBondSupported ? (1 << 5) : 0;  // Wspieranie wielokrotnego parowania
+    cgmFeatureByte2 |= multipleSessionsSupported ? (1 << 6) : 0;  // Wspieranie wielokrotnych sesji
+    cgmFeatureByte2 |= cgmTrendInformationSupported ? (1 << 7) : 0;  // Wspieranie informacji o trendach CGM
 
-  uint8_t cgmFeatureByte3 = 0;
-  cgmFeatureByte3 |= cgmQualitySupported ? (1 << 0) : 0;
+    uint8_t cgmFeatureByte3 = 0;  // Trzeci bajt cechy CGM
+    cgmFeatureByte3 |= cgmQualitySupported ? (1 << 0) : 0;  // Wspieranie jakości CGM
 
-  // Dane wejściowe
-  uint8_t cgmType = 2; // Capillary Plasma 4 bity
-  uint8_t cgmSampleLocation = 5; // Subcutaneous tissue 4 bity
-  uint16_t e2eCRC_1 = 0xFFFF; // E2E-CRC
+    // Dane wejściowe
+    uint8_t cgmType = 2; // Kapilarna osocze 4 bity
+    uint8_t cgmSampleLocation = 5; // Tkanka podskórna 4 bity
+    uint16_t e2eCRC_1 = 0xFFFF; // E2E-CRC
 
-  // Złożenie tablicy z wartościami bajtowymi CGM Feature
-  uint8_t cgmFeatureValue[] = {
-    cgmFeatureByte1, cgmFeatureByte2, cgmFeatureByte3,
-    ((cgmSampleLocation & 0x0F) << 4) | (cgmType & 0x0F),
-    static_cast<uint8_t>(e2eCRC_1 & 0xFF),
-    static_cast<uint8_t>((e2eCRC_1 >> 8) & 0xFF)
-  };
+    // Złożenie tablicy z wartościami bajtowymi CGM Feature
+    uint8_t cgmFeatureValue[] = {
+        cgmFeatureByte1, cgmFeatureByte2, cgmFeatureByte3,
+        ((cgmSampleLocation & 0x0F) << 4) | (cgmType & 0x0F),
+        static_cast<uint8_t>(e2eCRC_1 & 0xFF),
+        static_cast<uint8_t>((e2eCRC_1 >> 8) & 0xFF)
+    };
 
-  // Tworzenie charakterystyki 2AA8 CGM Feature
-  BLECharacteristic *pCGMFeatureChar = pCGMService->createCharacteristic(
-    BLEUUID(CGM_FEATURE_CHAR_UUID),
-    BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE
-  );
+    // Konfiguracja charakterystyki CGM Feature dla usługi CGM
+    pCGMFeatureChar = pCGMService->createCharacteristic(  // Utworzenie charakterystyki CGM Feature
+        CGM_FEATURE_CHAR_UUID,
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE
+    );
 
-  // Ustawienie wartości charakterystyki
-  pCGMFeatureChar->setValue(cgmFeatureValue, sizeof(cgmFeatureValue));
+    // Ustawienie wartości charakterystyki
+    pCGMFeatureChar->setValue(cgmFeatureValue, sizeof(cgmFeatureValue));
 
-  // Dodanie charakterystyki CGM Feature do usługi CGM
-  pCGMService->addCharacteristic(pCGMFeatureChar);
+    // Dodanie deskryptora do charakterystyki CGM Feature
+    NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
+        "2901",
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE,
+        20
+    );
 
-  // Dodanie deskryptora do charakterystyki CGM Feature
-  /*pCharUserDescDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2901));
-  pCharUserDescDesc->setValue("CGM Feature");
-  pCGMFeatureChar->addDescriptor(pCharUserDescDesc);*/
+    // Ustawienie wartości deskryptora
+    pCharUserDescDesc->setValue("CGM Feature");
+    pCGMFeatureChar->addDescriptor(pCharUserDescDesc);
+}
 
-  
 
-/*************************************************** Utworzenie usługi CGM Status ***************************************************/
+void createCGMStatus(NimBLEService* pCGMService, NimBLECharacteristic* pCGMStatusChar) {
     // Dane wejściowe
     uint16_t timeOffset_2 = 120; // 120 minut
     uint32_t cgmStatus = 0x123456; // Przykładowe 24-bitowe dane statusu
@@ -402,34 +577,37 @@ void setup() {
     cgmStatusValue[6] = static_cast<uint8_t>((e2eCRC_2 >> 8) & 0xFF);
 
     // Utworzenie charakterystyki 2AA9 CGM Status
-    BLECharacteristic *pCGMStatusChar = pCGMService->createCharacteristic(
-        BLEUUID(CGM_STATUS_CHAR_UUID),
-        BLECharacteristic::PROPERTY_READ
+    pCGMStatusChar = pCGMService->createCharacteristic(
+        CGM_STATUS_CHAR_UUID,
+        NIMBLE_PROPERTY::READ
     );
 
     // Ustawienie wartości charakterystyki
     pCGMStatusChar->setValue(cgmStatusValue, sizeof(cgmStatusValue));
 
-    // Dodanie charakterystyki do usługi
-    pCGMService->addCharacteristic(pCGMStatusChar);
-
     // Dodanie deskryptora do charakterystyki CGM Status
-    /*BLEDescriptor *pCharUserDescDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2901));
+    NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
+        "2901",
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE,
+        20  // Maksymalna długość deskryptora
+    );
+
+    // Ustawienie wartości deskryptora
     pCharUserDescDesc->setValue("CGM Status");
     pCGMStatusChar->addDescriptor(pCharUserDescDesc);
+}
 
 
-
-/*************************************************** Utworzenie usługi CGM Session Start Time ***************************************************/
+void createCGMSessionStartTime(NimBLEService* pCGMService, NimBLECharacteristic*& pCGMSessionStartTimeChar) {
     // Dane wejściowe dla daty i czasu
     uint16_t year = 2024;
     uint8_t month = 6;
-    uint8_t day = 9;
+    uint8_t day = 18;
     uint8_t hours = 15;
     uint8_t minutes = 35;
     uint8_t seconds = 22;
-    int8_t timeZone = 1; // Adjust as needed
-    int8_t dstOffset = 0; // Adjust as needed
+    int8_t timeZone = 1;     // Strefa czasowa
+    int8_t dstOffset = 0;    // Przesunięcie czasu letniego/zimowego
 
     // Przygotowanie tablicy z danymi do ustawienia w charakterystyce
     uint8_t sessionStartTimeValue[9];
@@ -445,30 +623,32 @@ void setup() {
 
     // Tworzenie charakterystyki 2AAA CGM Session Start Time
     pCGMSessionStartTimeChar = pCGMService->createCharacteristic(
-        BLEUUID(CGM_SESSION_START_TIME_CHAR_UUID),
-        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE
+        CGM_SESSION_START_TIME_CHAR_UUID,
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE
     );
 
     // Ustawienie wartości początkowej dla charakterystyki
     pCGMSessionStartTimeChar->setValue(sessionStartTimeValue, sizeof(sessionStartTimeValue));
 
-    // Dodanie charakterystyki do usługi
-    pCGMService->addCharacteristic(pCGMSessionStartTimeChar);
+    // Utworzenie deskryptora User Description do charakterystyki CGM Session Start Time
+    NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
+        "2901",
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE,
+        20 // Maksymalna długość deskryptora
+    );
+
+    // Ustawienie wartości deskryptora
+    pCharUserDescDesc->setValue("CGM Session Start Time");
 
     // Dodanie deskryptora do charakterystyki CGM Session Start Time
-    /*BLEDescriptor *pCharUserDescDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2901));
-    pCharUserDescDesc->setValue("CGM Session Start Time");
     pCGMSessionStartTimeChar->addDescriptor(pCharUserDescDesc);
-
-    // Dodanie deskryptora do powiadomień (opcjonalne)
-    pCGMSessionStartTimeChar->addDescriptor(new BLE2902());*/
+}
 
 
 
-/*************************************************** Utworzenie usługi CGM Session Run Time ***************************************************/
+void createCGMSessionRunTime(NimBLEService* pCGMService, NimBLECharacteristic*& pCGMSessionRunTimeChar, bool e2eCRCSupported) {
     // Dane wejściowe
     uint16_t sessionRunTime = 72; // Przykładowy czas trwania sesji w godzinach
-    //bool e2eCRCSupported = true; // Załóżmy, że urządzenie obsługuje E2E-CRC
 
     // Przygotowanie tablicy z danymi do ustawienia w charakterystyce
     uint8_t sessionRunTimeValue[4];
@@ -476,6 +656,7 @@ void setup() {
     sessionRunTimeValue[1] = (sessionRunTime >> 8) & 0xFF;
 
     if (e2eCRCSupported) {
+        // Obliczenie i dodanie CRC, jeśli obsługiwane
         uint16_t crc = calculateCRC(sessionRunTimeValue, 2);
         sessionRunTimeValue[2] = crc & 0xFF;
         sessionRunTimeValue[3] = (crc >> 8) & 0xFF;
@@ -483,20 +664,244 @@ void setup() {
 
     // Tworzenie charakterystyki CGM Session Run Time
     pCGMSessionRunTimeChar = pCGMService->createCharacteristic(
-        BLEUUID("2AAB"),
-        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_INDICATE
+        CGM_SESSION_RUN_TIME_CHAR_UUID,
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::INDICATE // Właściwości charakterystyki
     );
 
     // Ustawienie wartości początkowej dla charakterystyki
     pCGMSessionRunTimeChar->setValue(sessionRunTimeValue, e2eCRCSupported ? 4 : 2);
 
-    // Dodanie deskryptora Client Characteristic Configuration
-    pClientCharConfigDesc = new BLEDescriptor(BLEUUID((uint16_t)0x2902));
-    pCGMSessionRunTimeChar->addDescriptor(pClientCharConfigDesc);
+    // Utworzenie deskryptora Client Characteristic Configuration
+    NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
+        "2902", // UUID deskryptora
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości deskryptora
+        2 // Maksymalna długość deskryptora
+    );
 
-    // Dodanie charakterystyki do usługi
-    pCGMService->addCharacteristic(pCGMSessionRunTimeChar);
+    // Ustawienie wartości deskryptora
+    pClientCharConfigDesc->setValue("Client Characteristic Configuration");
+}
 
+
+void createCustomCharacteristic1(NimBLEService* pCGMService, NimBLECharacteristic*& pCustomCharacteristic) {
+    // Tworzenie charakterystyki o UUID createCustomCharacteristic1(NimBLEService* pCGMService, NimBLECharacteristic*& pCustomCharacteristic)
+    pCustomCharacteristic = pCGMService->createCharacteristic(
+        "00000203-0000-1000-0000-009132591325",
+        NIMBLE_PROPERTY::INDICATE
+    );
+
+    // Tworzenie deskryptora Client Characteristic Configuration (CCC) dla charakterystyki
+    NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
+        "2902", // UUID deskryptora Client Characteristic Configuration
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
+        2 // Długość deskryptora
+    );
+}
+
+void createRecordAccessControlPoint(NimBLEService* pCGMService, NimBLECharacteristic*& pRecordAccessControlPointChar) {
+    // Tworzenie charakterystyki Record Access Control Point
+    pRecordAccessControlPointChar = pCGMService->createCharacteristic(
+        RECORD_ACCESS_CONTROL_POINT_CHAR_UUID, // UUID charakterystyki Record Access Control Point
+        NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::INDICATE // Właściwości: zapis i wskazywanie
+    );
+
+    // Tworzenie deskryptora Client Characteristic Configuration
+    pClientCharConfigDesc = new NimBLEDescriptor(
+        "2902", // UUID deskryptora Client Characteristic Configuration
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
+        2 // Długość deskryptora
+    );
+
+    // Ustawienie wartości deskryptora Client Characteristic Configuration
+    uint8_t cccValue[] = {0x00, 0x00}; // Wartość początkowa deskryptora
+    pClientCharConfigDesc->setValue(cccValue, sizeof(cccValue));
+}
+
+void createCustomService(NimBLEServer* pServer, NimBLEService*& pCustomService) {
+    // Tworzenie usługi o UUID 0xFE82
+    pCustomService = pServer->createService("FE82");
+
+    // Tworzenie charakterystyki dla tej usługi
+    NimBLECharacteristic* pCustomCharacteristic = pCustomService->createCharacteristic(
+        "0000fe82-0000-1000-0000-009132591325", // UUID charakterystyki
+        NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY // Właściwości: zapis i powiadamianie
+    );
+
+    // Tworzenie deskryptora User Description dla charakterystyki
+    NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
+        "2901", // UUID deskryptora User Description
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
+        20 // Maksymalna długość deskryptora
+    );
+    pCharUserDescDesc->setValue("Custom Characteristic");
+
+    // Dodanie deskryptora User Description do charakterystyki
+    pCustomCharacteristic->addDescriptor(pCharUserDescDesc);
+
+    // Tworzenie deskryptora Client Characteristic Configuration (CCC) dla charakterystyki
+    NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
+        "2902", // UUID deskryptora Client Characteristic Configuration
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
+        2 // Długość deskryptora
+    );
+    uint8_t cccValue[] = {0x00, 0x00}; // Wartość początkowa deskryptora
+    pClientCharConfigDesc->setValue(cccValue, sizeof(cccValue));
+
+    // Uruchomienie usługi Custom Service
+    pCustomService->start();
+}
+
+
+void createCustomService1(NimBLEServer* pServer, NimBLEService*& pCustomService) {
+    // Tworzenie usługi o UUID 15DBCD61-6388-4C33-B9D8-580254FED03B
+    pCustomService = pServer->createService("15DBCD61-6388-4C33-B9D8-580254FED03B");
+
+    // Tworzenie pierwszej charakterystyki z UUID C774EDAC-E573-45E1-97C6-8B5C18CC571A
+    NimBLECharacteristic* pIndicateCharacteristic = pCustomService->createCharacteristic(
+        "C774EDAC-E573-45E1-97C6-8B5C18CC571A",
+        NIMBLE_PROPERTY::INDICATE // Właściwość: wskazywanie
+    );
+
+    // Tworzenie deskryptora Client Characteristic Configuration dla tej charakterystyki
+    NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
+        "2902", // UUID deskryptora Client Characteristic Configuration
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
+        2 // Długość deskryptora
+    );
+
+    // Tworzenie drugiej charakterystyki z UUID DE3E5221-1308-439C-A13A-884DDC387CA7
+    NimBLECharacteristic* pReadCharacteristic = pCustomService->createCharacteristic(
+        "DE3E5221-1308-439C-A13A-884DDC387CA7",
+        NIMBLE_PROPERTY::READ // Właściwość: odczyt
+    );
+
+    // Tworzenie trzeciej charakterystyki z UUID 8484039E-97D3-40C0-BB55-C70C17BADAe2
+    NimBLECharacteristic* pWriteCharacteristic = pCustomService->createCharacteristic(
+        "8484039E-97D3-40C0-BB55-C70C17BADAe2",
+        NIMBLE_PROPERTY::WRITE // Właściwość: zapis
+    );
+
+    // Uruchomienie usługi Custom Service
+    pCustomService->start();
+}
+
+void createCustomService2(NimBLEServer* pServer, NimBLEService*& pCustomService) {
+    // Tworzenie usługi o UUID 00000300-0000-1000-0000-009132591325
+    pCustomService = pServer->createService("00000300-0000-1000-0000-009132591325");
+
+    // Tworzenie pierwszej charakterystyki Record Access Control Point z UUID 2A52
+    NimBLECharacteristic* pRecordAccessControlPointChar = pCustomService->createCharacteristic(
+        "2A52", // UUID charakterystyki
+        NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::INDICATE // Właściwości: zapis i wskazywanie
+    );
+
+    // Tworzenie deskryptora Client Characteristic Configuration dla tej charakterystyki
+    NimBLEDescriptor* pClientCharConfigDesc1 = new NimBLEDescriptor(
+        "2902", // UUID deskryptora Client Characteristic Configuration
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
+        2 // Długość deskryptora
+    );
+
+    // Tworzenie drugiej charakterystyki z UUID 00000360-0000-1000-0000-009132591325
+    NimBLECharacteristic* pWriteIndicateCharacteristic = pCustomService->createCharacteristic(
+        "00000360-0000-1000-0000-009132591325", // UUID charakterystyki
+        NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::INDICATE // Właściwości: zapis i wskazywanie
+    );
+
+    // Tworzenie deskryptora Client Characteristic Configuration dla tej charakterystyki
+    NimBLEDescriptor* pClientCharConfigDesc2 = new NimBLEDescriptor(
+        "2902", // UUID deskryptora Client Characteristic Configuration
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
+        2 // Długość deskryptora
+    );
+
+    // Tworzenie trzeciej charakterystyki z UUID 00000350-0000-1000-0000-009132591325
+    NimBLECharacteristic* pNotifyCharacteristic = pCustomService->createCharacteristic(
+        "00000350-0000-1000-0000-009132591325", // UUID charakterystyki
+        NIMBLE_PROPERTY::NOTIFY // Właściwość: powiadamianie
+    );
+
+    // Tworzenie deskryptora Client Characteristic Configuration dla tej charakterystyki
+    NimBLEDescriptor* pClientCharConfigDesc3 = new NimBLEDescriptor(
+        "2902", // UUID deskryptora Client Characteristic Configuration
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
+        2 // Długość deskryptora
+    );
+
+    // Uruchomienie usługi Custom Service
+    pCustomService->start();
+}
+
+
+
+
+void setup() {
+  Serial.begin(115200);
+
+  // Inicjalizacja BLE
+  NimBLEDevice::init("CGM G1234567M");
+
+  // Tworzenie serwera BLE, który będzie zarządzał usługami i charakterystykami
+  NimBLEServer* pServer = NimBLEDevice::createServer();
+
+  // Ustawienie callbacków dla zdarzeń połączenia i rozłączenia
+  pServer->setCallbacks(new MyServerCallbacks());
+
+  // Konfiguracja usługi Generic Access, która zapewnia podstawowe informacje o urządzeniu
+  createGenericAccessService(pServer);
+
+  // Konfiguracja usługi Device Information, która dostarcza informacje szczegółowe o urządzeniu
+  createDeviceInformationService(pServer);
+
+  // Konfiguracja usługi Battery Service z określonym poziomem naładowania baterii
+  createBatteryService(pServer, batteryLevel);
+
+  // Utworzenie głównej usługi CGM
+  pCGMService = pServer->createService(CGM_SERVICE_UUID);
+
+  // Utworzenie charakterystyki CGM Measurement i dodanie do usługi CGM
+  createCGMMeasurement(pCGMService, pCGMMeasurementChar);
+
+  // Utworzenie charakterystyki 00000200-0000-1000-0000-009132591325 i dodanie do usługi CGM
+  NimBLECharacteristic* pCustomCharacteristic;
+  createCustomCharacteristic(pCGMService, pCustomCharacteristic);
+
+  // Utworzenie charakterystyki CGM Feature i dodanie do usługi CGM
+  createCGMFeature(pCGMService, pCGMFeatureChar);
+
+  // Utworzenie charakterystyki CGM Status i dodanie do usługi CGM
+  createCGMStatus(pCGMService, pCGMStatusChar);
+
+  // Utworzenie charakterystyki CGM Session Start Time i dodanie do usługi CGM
+  createCGMSessionStartTime(pCGMService, pCGMSessionStartTimeChar);
+
+  // Uworzenie charakterystyki CGM Session Run Time i dodanie do usługi CGM
+  createCGMSessionRunTime(pCGMService, pCGMSessionRunTimeChar, true);
+
+  // Uworzenie charakterystyki 00000203-0000-1000-0000-009132591325 i dodanie do usługi CGM
+  createCustomCharacteristic1(pCGMService, pCustomCharacteristic);
+
+  // Utworzenie charakterystyki Record Access Control Point
+  createRecordAccessControlPoint(pCGMService, pRecordAccessControlPointChar);
+
+
+
+
+  // Uruchomienie usługi CGM
+  pCGMService->start();
+
+
+  // Utworzenie usługi Custom Service o UUID 0xFE82
+  NimBLEService* pCustomService;
+  createCustomService(pServer, pCustomService);
+
+  // Utworzenie usługi Custom Service o UUID 15DBCD61-6388-4C33-B9D8-580254FED03B
+  NimBLEService* pCustomService1;
+  createCustomService1(pServer, pCustomService);
+
+  // Utworzenie usługi Custom Service o UUID 00000300-0000-1000-0000-009132591325
+  NimBLEService* pCustomService2;
+  createCustomService2(pServer, pCustomService);
 
 
 
@@ -516,37 +921,91 @@ void setup() {
 
 
 
+/************************************************** Ustawienie sparowania BLE **********************************************/
+  // Konfiguracja parowania i bondingu
+
+  //NimBLEDevice::setSecurityAuth(bonding, mitm, sc);
+
+  NimBLESecurity bleSecurity; // Utwórz obiekt klasy NimBLESecurity
+
+  // Ustaw żądany tryb uwierzytelniania na obiekcie klasy NimBLESecurity
+  bleSecurity.setAuthenticationMode(ESP_LE_AUTH_REQ_BOND_MITM);
+
+/********************************************* do wyboru ***************************************************/
+  // Ustaw żądany tryb uwierzytelniania na obiekcie klasy NimBLESecurity
+
+  //bleSecurity.setAuthenticationMode(ESP_LE_AUTH_NO_BOND);
+  // ESP_LE_AUTH_NO_BOND: Brak zapamiętywania (bonding). Połączenie nie zostanie zapamiętane po jego zakończeniu.
+
+  //bleSecurity.setAuthenticationMode(ESP_LE_AUTH_BOND);
+  // ESP_LE_AUTH_BOND: Włączenie bonding. Połączenie będzie zapamiętane i można będzie się do niego ponownie łączyć.
+
+  //bleSecurity.setAuthenticationMode(ESP_LE_AUTH_REQ_MITM);
+  // ESP_LE_AUTH_REQ_MITM: Wymóg ochrony przed atakami typu Man-In-The-Middle (MITM). Używany w połączeniach, które wymagają uwierzytelnienia z ochroną przed MITM.
+
+  //bleSecurity.setAuthenticationMode(ESP_LE_AUTH_REQ_BOND_MITM);
+  // ESP_LE_AUTH_REQ_BOND_MITM: Wymaga bonding oraz ochrony przed MITM. Połączenie będzie zapamiętane i wymaga uwierzytelnienia z ochroną przed MITM.
+
+  //bleSecurity.setAuthenticationMode(ESP_LE_AUTH_REQ_SC_ONLY);
+  // ESP_LE_AUTH_REQ_SC_ONLY: Wymaga użycia tylko zabezpieczonych połączeń (Secure Connections).
+
+  //bleSecurity.setAuthenticationMode(ESP_LE_AUTH_REQ_SC_BOND);
+  // ESP_LE_AUTH_REQ_SC_BOND: Wymaga bonding oraz użycia tylko zabezpieczonych połączeń (Secure Connections).
+
+  //bleSecurity.setAuthenticationMode(ESP_LE_AUTH_REQ_SC_MITM);
+  // ESP_LE_AUTH_REQ_SC_MITM: Wymaga ochrony przed MITM oraz użycia tylko zabezpieczonych połączeń (Secure Connections).
+
+  //bleSecurity.setAuthenticationMode(ESP_LE_AUTH_REQ_SC_MITM_BOND);
+  // ESP_LE_AUTH_REQ_SC_MITM_BOND: Wymaga bonding, ochrony przed MITM oraz użycia tylko zabezpieczonych połączeń (Secure Connections).
+/********************************************* do wyboru ***************************************************/
+
+
+  NimBLEDevice::setSecurityIOCap(ESP_IO_CAP_NONE);
+                                // ESP_IO_CAP_OUT      Urządzenie ma możliwość wyświetlania PIN-u do autoryzacji
+                                // ESP_IO_CAP_IO       Urządzenie ma możliwość wyświetlania i wprowadzania PIN-u (DisplayYesNo)
+                                // ESP_IO_CAP_IN       Urządzenie ma możliwość tylko wprowadzania PIN-u (KeyboardOnly)
+                                // ESP_IO_CAP_NONE     Urządzenie nie ma możliwości wprowadzania ani wyświetlania (NoInputNoOutput)
+                                // ESP_IO_CAP_KBDISP   Urządzenie ma możliwość jednoczesnego wyświetlania i wprowadzania (Keyboard display)
+  //NimBLEDevice::setSecurityInitKey(initKey);
+  //NimBLEDevice::setSecurityRespKey(respKey);
+
+  // Ustawienie callbacków bezpieczeństwa
+  NimBLEDevice::setSecurityCallbacks(new MySecurityCallbacks());
+
+  // Rozpoczęcie serwisu
+  //pService->start();
 
 
 
 
 
-  // Globale ruchomienie usługi CGM
-  pCGMService->start();
 
 
 
+  // Utworzenie obiektu rozgłaszania
+  NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
 
+  // Konfiguracja danych rozgłaszania
+  NimBLEAdvertisementData advertisementData;
+  //advertisementData.setFlags(ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT); // Ustawienie flag
 
+  // Dodanie danych discovery jako std::string
+  advertisementData.addData(std::string(reinterpret_cast<const char*>(discoveryData), sizeof(discoveryData)));
 
-
-
-
-  // Ustawienie danych reklamowych i danych odpowiedzi na skanowanie
-  BLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
-  BLEAdvertisementData advertisementData;
-  BLEAdvertisementData scanResponseData;
-
-  // Ustawianie danych reklamowych
-  advertisementData.addData(String(reinterpret_cast<const char*>(discoveryData), sizeof(discoveryData)));
-  scanResponseData.addData(String(reinterpret_cast<const char*>(scanRspData), sizeof(scanRspData)));
-
+  // Ustawienie danych rozgłaszania
   pAdvertising->setAdvertisementData(advertisementData);
-  pAdvertising->setScanResponseData(scanResponseData);
-  
-  pAdvertising->start();
-  Serial.println("Advertising ...");
 
+  // Konfiguracja danych odpowiedzi na skanowanie
+  NimBLEAdvertisementData scanResponseData;
+  scanResponseData.addData(std::string(reinterpret_cast<const char*>(scanRspData), sizeof(scanRspData)));
+
+  // Ustawienie danych odpowiedzi na skanowanie
+  pAdvertising->setScanResponseData(scanResponseData);
+
+  // Rozpoczęcie rozgłaszania
+  pAdvertising->start();
+
+  Serial.println("Advertising.....");
 
 
 }
