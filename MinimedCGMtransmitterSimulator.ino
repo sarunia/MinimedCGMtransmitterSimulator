@@ -4,52 +4,41 @@
 #define SERVICE_UUID "180A"
 
 // UUID charakterystyk Device Information
-#define CHARACTERISTIC_UUID_MANUFACTURER "2A29"
-#define CHARACTERISTIC_UUID_MODEL "2A24"
-#define CHARACTERISTIC_UUID_SERIAL "2A25"
-#define CHARACTERISTIC_UUID_FIRMWARE "2A26"
-#define CHARACTERISTIC_UUID_HARDWARE "2A27"
-#define CHARACTERISTIC_UUID_SOFTWARE "2A28"
-#define CHARACTERISTIC_UUID_SYSTEM_ID "2A23"
-#define CHARACTERISTIC_UUID_REG_CERT "2A2A"
-#define CHARACTERISTIC_UUID_PNP_ID "2A50"
+#define CHARACTERISTIC_UUID_MANUFACTURER "2A29" // UUID dla charakterystyki Manufacturer Name
+#define CHARACTERISTIC_UUID_MODEL "2A24" // UUID dla charakterystyki Model Number
+#define CHARACTERISTIC_UUID_SERIAL "2A25" // UUID dla charakterystyki Serial Number
+#define CHARACTERISTIC_UUID_FIRMWARE "2A26" // UUID dla charakterystyki Firmware Revision
+#define CHARACTERISTIC_UUID_HARDWARE "2A27" // UUID dla charakterystyki Hardware Revision
+#define CHARACTERISTIC_UUID_SOFTWARE "2A28" // UUID dla charakterystyki Software Revision
+#define CHARACTERISTIC_UUID_SYSTEM_ID "2A23" // UUID dla charakterystyki System ID
+#define CHARACTERISTIC_UUID_REG_CERT "2A2A" // UUID dla charakterystyki Regulatory Certification Data List
+#define CHARACTERISTIC_UUID_PNP_ID "2A50" // UUID dla charakterystyki PnP ID
 
 // UUID dla usługi i charakterystyk Generic Access
-#define GENERIC_ACCESS_SERVICE_UUID       "00001800-0000-1000-8000-00805F9B34FB"
-#define GENERIC_ACCESS_DEVICE_NAME_UUID   "00002A00-0000-1000-8000-00805F9B34FB"
-#define GENERIC_ACCESS_APPEARANCE_UUID    "00002A01-0000-1000-8000-00805F9B34FB"
-#define GENERIC_ACCESS_CONN_PARAMS_UUID   "00002A04-0000-1000-8000-00805F9B34FB"
+#define GENERIC_ACCESS_SERVICE_UUID       "00001800-0000-1000-8000-00805F9B34FB" // UUID dla usługi Generic Access
+#define GENERIC_ACCESS_DEVICE_NAME_UUID   "00002A00-0000-1000-8000-00805F9B34FB" // UUID dla charakterystyki Device Name
+#define GENERIC_ACCESS_APPEARANCE_UUID    "00002A01-0000-1000-8000-00805F9B34FB" // UUID dla charakterystyki Appearance
+#define GENERIC_ACCESS_CONN_PARAMS_UUID   "00002A04-0000-1000-8000-00805F9B34FB" // UUID dla charakterystyki Connection Parameters
 
 // UUID dla usługi i charakterystyk Battery Service
-#define BATTERY_SERVICE_UUID "180F"
-#define BATTERY_LEVEL_CHAR_UUID "2A19"
+#define BATTERY_SERVICE_UUID "180F" // UUID dla usługi Battery Service
+#define BATTERY_LEVEL_CHAR_UUID "2A19" // UUID dla charakterystyki Battery Level
 
 // Deklaracje UUID
-#define CGM_SERVICE_UUID "0000181F-0000-1000-8000-00805F9B34FB"
-#define CGM_MEASUREMENT_CHAR_UUID "00002AA7-0000-1000-8000-00805F9B34FB"
-#define CGM_FEATURE_CHAR_UUID "00002AA8-0000-1000-8000-00805F9B34FB"
-#define CGM_STATUS_CHAR_UUID "00002AA9-0000-1000-8000-00805F9B34FB"
-#define CGM_SESSION_START_TIME_CHAR_UUID "00002AAA-0000-1000-8000-00805F9B34FB"
-#define CGM_SESSION_RUN_TIME_CHAR_UUID "00002AAB-0000-1000-8000-00805F9B34FB"
-#define RECORD_ACCESS_CONTROL_POINT_CHAR_UUID "00002A52-0000-1000-8000-00805F9B34FB"
-#define CGM_SPECIFIC_OPS_CONTROL_POINT_CHAR_UUID "00002AAC-0000-1000-8000-00805F9B34FB"
-
-// Dodatkowe UUIDs dla customowych charakterystyk
-#define CUSTOM_CHAR_1_UUID                     "00000200-0000-1000-0000-009132591325"
-#define CUSTOM_CHAR_2_UUID                     "00000201-0000-1000-0000-009132591325"
-#define CUSTOM_CHAR_3_UUID                     "00000202-0000-1000-0000-009132591325"
-#define CUSTOM_CHAR_4_UUID                     "00000203-0000-1000-0000-009132591325"
-
-// Definicje zmiennych na podstawie specyfikacji
-#define CGM_SPECIFIC_OPS_CONTROL_POINT_CHAR_UUID "00002AAC-0000-1000-8000-00805F9B34FB"
-#define CGM_SPECIFIC_OPS_CONTROL_POINT_NAME "CGM Specific Ops Control Point"
-#define CGM_SPECIFIC_OPS_CONTROL_POINT_SUMMARY "CGM Specific Ops Control Point Summary"
+#define CGM_SERVICE_UUID "0000181F-0000-1000-8000-00805F9B34FB" // UUID dla usługi CGM (Continuous Glucose Monitoring)
+#define CGM_MEASUREMENT_CHAR_UUID "00002AA7-0000-1000-8000-00805F9B34FB" // UUID dla charakterystyki CGM Measurement
+#define CGM_FEATURE_CHAR_UUID "00002AA8-0000-1000-8000-00805F9B34FB" // UUID dla charakterystyki CGM Feature
+#define CGM_STATUS_CHAR_UUID "00002AA9-0000-1000-8000-00805F9B34FB" // UUID dla charakterystyki CGM Status
+#define CGM_SESSION_START_TIME_CHAR_UUID "00002AAA-0000-1000-8000-00805F9B34FB" // UUID dla charakterystyki CGM Session Start Time
+#define CGM_SESSION_RUN_TIME_CHAR_UUID "00002AAB-0000-1000-8000-00805F9B34FB" // UUID dla charakterystyki CGM Session Run Time
+#define RECORD_ACCESS_CONTROL_POINT_CHAR_UUID "00002A52-0000-1000-8000-00805F9B34FB" // UUID dla charakterystyki Record Access Control Point
+#define CGM_SPECIFIC_OPS_CONTROL_POINT_CHAR_UUID "00002AAC-0000-1000-8000-00805F9B34FB" // UUID dla charakterystyki CGM Specific Ops Control Point
 
 // Informacje o poszczególnych polach charakterystyki
-#define CGM_OP_CODE_FIELD_NAME "Op Code"
-#define CGM_OP_CODE_FIELD_MANDATORY true
-#define CGM_OP_CODE_FIELD_FORMAT "uint8"
-#define CGM_OP_CODE_FIELD_VALUE 0x01
+#define CGM_OP_CODE_FIELD_NAME "Op Code" // Nazwa pola Op Code w charakterystyce
+#define CGM_OP_CODE_FIELD_MANDATORY true // Pole Op Code jest obowiązkowe
+#define CGM_OP_CODE_FIELD_FORMAT "uint8" // Format pola Op Code to uint8
+#define CGM_OP_CODE_FIELD_VALUE 0x01 // Wartość domyślna pola Op Code
 
 // Enumeracje dla pola Op Code
 enum CGMOpCode {
@@ -84,6 +73,18 @@ enum CGMOpCode {
     RESPONSE_CODE = 28,
     RESERVED_FUTURE_USE = 255
 };
+
+// Opisy dla Response Codes
+enum CGMResponseCode {
+    RESPONSE_RESERVED = 0,
+    RESPONSE_SUCCESS = 1,
+    RESPONSE_OP_CODE_NOT_SUPPORTED = 2,
+    RESPONSE_INVALID_OPERAND = 3,
+    RESPONSE_PROCEDURE_NOT_COMPLETED = 4,
+    RESPONSE_PARAMETER_OUT_OF_RANGE = 5,
+    RESPONSE_RESERVED_FUTURE_USE = 255
+};
+
 
 
 int batteryLevel = 0x5F; // Wartość 95% baterii nadajnika
@@ -134,6 +135,36 @@ uint8_t keySize = 16; // Rozmiar klucza szyfrowania (16 bajtów)
 // Klasyfikacja kluczy do parowania i bondingu
 uint8_t initKey = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK | ESP_BLE_CSR_KEY_MASK; // Klucz inicjujący
 uint8_t respKey = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK | ESP_BLE_CSR_KEY_MASK; // Klucz odpowiedzi
+
+
+void printUUID(const char* direction, const char* uuid) {
+    Serial.print(direction);
+    Serial.print(" UUID: ");
+    Serial.println(uuid);
+}
+
+void printValue(const char* direction, const std::string& value) {
+    Serial.print(direction);
+    Serial.print(" Value: ");
+    Serial.println(value.c_str());
+}
+
+void onCharacteristicWrite(NimBLECharacteristic* pCharacteristic) {
+    std::string value = pCharacteristic->getValue();
+    printUUID("Incoming", pCharacteristic->getUUID().toString().c_str());
+    printValue("Incoming", value);
+    // Handle values written to the characteristic
+}
+
+void onCharacteristicIndicate(NimBLECharacteristic* pCharacteristic, bool indicate) {
+    std::string value = pCharacteristic->getValue();
+    printUUID("Outgoing", pCharacteristic->getUUID().toString().c_str());
+    printValue("Outgoing", value);
+    // Handle indication information (INDICATE)
+}
+
+
+
 
 // Klasa callbacków bezpieczeństwa
 class MySecurityCallbacks : public NimBLESecurityCallbacks {
@@ -339,7 +370,7 @@ void createDeviceInformationService(NimBLEServer* pServer) {
     pCharacteristic->setValue("1.0A.a69cfcd7");
 
     // Konwertowanie danych na tablicę uint8_t
-    const uint8_t systemIdData[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0xDC, 0x16, 0x02};
+    const uint8_t systemIdData[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0xDC, 0x16, 0xA2};
 
     // Tworzenie charakterystyki System ID
     pCharacteristic = pService->createCharacteristic(
@@ -429,7 +460,7 @@ void createCGMMeasurement(NimBLEService* pCGMService, NimBLECharacteristic* pCGM
     // Tworzenie charakterystyki CGM Measurement dla 2AA7
     pCGMMeasurementChar = pCGMService->createCharacteristic(
         CGM_MEASUREMENT_CHAR_UUID,
-        NIMBLE_PROPERTY::NOTIFY | NIMBLE_PROPERTY::INDICATE | NIMBLE_PROPERTY::READ // Dodałem READ, aby podejrzeć tablicę na telefonie
+        NIMBLE_PROPERTY::NOTIFY | NIMBLE_PROPERTY::INDICATE //| NIMBLE_PROPERTY::READ // Dodałem READ, aby podejrzeć tablicę na telefonie
     );
 
     pCGMMeasurementChar->setValue(cgmMeasurementValue, sizeof(cgmMeasurementValue));
@@ -541,7 +572,7 @@ void createCGMFeature(NimBLEService* pCGMService, NimBLECharacteristic* pCGMFeat
     // Konfiguracja charakterystyki CGM Feature dla usługi CGM
     pCGMFeatureChar = pCGMService->createCharacteristic(  // Utworzenie charakterystyki CGM Feature
         CGM_FEATURE_CHAR_UUID,
-        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE
+        NIMBLE_PROPERTY::READ
     );
 
     // Ustawienie wartości charakterystyki
@@ -631,17 +662,17 @@ void createCGMSessionStartTime(NimBLEService* pCGMService, NimBLECharacteristic*
     pCGMSessionStartTimeChar->setValue(sessionStartTimeValue, sizeof(sessionStartTimeValue));
 
     // Utworzenie deskryptora User Description do charakterystyki CGM Session Start Time
-    NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
+    /*NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
         "2901",
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE,
         20 // Maksymalna długość deskryptora
-    );
+    );*/
 
     // Ustawienie wartości deskryptora
-    pCharUserDescDesc->setValue("CGM Session Start Time");
+    //pCharUserDescDesc->setValue("CGM Session Start Time");
 
     // Dodanie deskryptora do charakterystyki CGM Session Start Time
-    pCGMSessionStartTimeChar->addDescriptor(pCharUserDescDesc);
+    //pCGMSessionStartTimeChar->addDescriptor(pCharUserDescDesc);
 }
 
 
@@ -713,9 +744,25 @@ void createRecordAccessControlPoint(NimBLEService* pCGMService, NimBLECharacteri
     );
 
     // Ustawienie wartości deskryptora Client Characteristic Configuration
-    uint8_t cccValue[] = {0x00, 0x00}; // Wartość początkowa deskryptora
-    pClientCharConfigDesc->setValue(cccValue, sizeof(cccValue));
+    //uint8_t cccValue[] = {0x00, 0x00}; // Wartość początkowa deskryptora
+    //pClientCharConfigDesc->setValue(cccValue, sizeof(cccValue));
 }
+
+void createCGMSpecificOpsControlPoint(NimBLEService* pCGMService, NimBLECharacteristic*& pCGMSpecificOpsControlPointChar) {
+    // Tworzenie charakterystyki Record Access Control Point
+    pCGMSpecificOpsControlPointChar = pCGMService->createCharacteristic(
+        CGM_SPECIFIC_OPS_CONTROL_POINT_CHAR_UUID, // UUID charakterystyki Record Access Control Point
+        NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::INDICATE // Właściwości: zapis i wskazywanie
+    );
+
+    // Tworzenie deskryptora Client Characteristic Configuration
+    pClientCharConfigDesc = new NimBLEDescriptor(
+        "2902", // UUID deskryptora Client Characteristic Configuration
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
+        2 // Długość deskryptora
+    );
+}
+
 
 void createCustomService(NimBLEServer* pServer, NimBLEService*& pCustomService) {
     // Tworzenie usługi o UUID 0xFE82
@@ -832,6 +879,37 @@ void createCustomService2(NimBLEServer* pServer, NimBLEService*& pCustomService)
     pCustomService->start();
 }
 
+void createCustomCharacteristic2(NimBLEService* pCGMService, NimBLECharacteristic*& pCustomCharacteristic) {
+    // Tworzenie charakterystyki o UUID 00000201-0000-1000-0000-009132591325
+    pCustomCharacteristic = pCGMService->createCharacteristic(
+        "00000201-0000-1000-0000-009132591325",
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::INDICATE
+    );
+
+    // Tworzenie deskryptora Client Characteristic Configuration (CCC) dla charakterystyki
+    NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
+        "2902", // UUID deskryptora Client Characteristic Configuration
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
+        2 // Długość deskryptora
+    );
+}
+
+void createCustomCharacteristic3(NimBLEService* pCGMService, NimBLECharacteristic*& pCustomCharacteristic) {
+    // Tworzenie charakterystyki o UUID 00000202-0000-1000-0000-009132591325
+    pCustomCharacteristic = pCGMService->createCharacteristic(
+        "00000202-0000-1000-0000-009132591325",
+        NIMBLE_PROPERTY::INDICATE
+    );
+
+    // Tworzenie deskryptora Client Characteristic Configuration (CCC) dla charakterystyki
+    NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
+        "2902", // UUID deskryptora Client Characteristic Configuration
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
+        2 // Długość deskryptora
+    );
+}
+
+
 
 
 
@@ -884,8 +962,14 @@ void setup() {
   // Utworzenie charakterystyki Record Access Control Point
   createRecordAccessControlPoint(pCGMService, pRecordAccessControlPointChar);
 
+  // Utworzenie charakterystyki Specific Ops Control Point i dodanie do usługi CGM
+  createCGMSpecificOpsControlPoint(pCGMService, pCGMSpecificOpsControlPointChar);
 
+  // Utworzenie charakterystyki 00000201-0000-1000-0000-009132591325 i dodanie do usługi CGM
+  createCustomCharacteristic2(pCGMService, pCustomCharacteristic);
 
+  // Utworzenie charakterystyki 00000202-0000-1000-0000-009132591325 i dodanie do usługi CGM
+  createCustomCharacteristic3(pCGMService, pCustomCharacteristic);
 
   // Uruchomienie usługi CGM
   pCGMService->start();
