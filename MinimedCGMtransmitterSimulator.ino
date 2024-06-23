@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <NimBLEDevice.h>
 
 // UUID usługi Device Information
@@ -137,32 +138,6 @@ uint8_t initKey = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK | ESP_BLE_CSR_KEY_M
 uint8_t respKey = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK | ESP_BLE_CSR_KEY_MASK; // Klucz odpowiedzi
 
 
-void printUUID(const char* direction, const char* uuid) {
-    Serial.print(direction);
-    Serial.print(" UUID: ");
-    Serial.println(uuid);
-}
-
-void printValue(const char* direction, const std::string& value) {
-    Serial.print(direction);
-    Serial.print(" Value: ");
-    Serial.println(value.c_str());
-}
-
-void onCharacteristicWrite(NimBLECharacteristic* pCharacteristic) {
-    std::string value = pCharacteristic->getValue();
-    printUUID("Incoming", pCharacteristic->getUUID().toString().c_str());
-    printValue("Incoming", value);
-    // Handle values written to the characteristic
-}
-
-void onCharacteristicIndicate(NimBLECharacteristic* pCharacteristic, bool indicate) {
-    std::string value = pCharacteristic->getValue();
-    printUUID("Outgoing", pCharacteristic->getUUID().toString().c_str());
-    printValue("Outgoing", value);
-    // Handle indication information (INDICATE)
-}
-
 
 
 
@@ -203,72 +178,137 @@ class MySecurityCallbacks : public NimBLESecurityCallbacks {
   }
 };
 
-// Klasa callbacków serwera
-class MyServerCallbacks : public NimBLEServerCallbacks {
-  void onConnect(NimBLEServer* pServer) override {
-    Serial.println("Client connected");
-  }
-
-  void onDisconnect(NimBLEServer* pServer) override {
-    Serial.println("Client disconnected");
-  }
-
-  void onMTUChange(uint16_t MTU, ble_gap_conn_desc* desc) override {
-    Serial.print("MTU updated: ");
-    Serial.println(MTU);
-  }
-};
-
-// Klasa callbacków charakterystyki
-class MyCharacteristicCallbacks : public NimBLECharacteristicCallbacks {
-  void onRead(NimBLECharacteristic* pCharacteristic) override {
-    Serial.print("Characteristic ");
-    Serial.print(pCharacteristic->getUUID().toString().c_str());
-    Serial.println(" read");
-  }
-
-  void onWrite(NimBLECharacteristic* pCharacteristic) override {
-    Serial.print("Characteristic ");
-    Serial.print(pCharacteristic->getUUID().toString().c_str());
-    Serial.println(" written");
-
-    std::string value = pCharacteristic->getValue();
-    Serial.print("Value: ");
-    for (int i = 0; i < value.length(); i++) {
-      Serial.print(value[i], HEX);
-      Serial.print(" ");
+// Klasa obsługi callbacków dla serwera
+class serverCallbacks : public NimBLEServerCallbacks {
+    void onConnect(NimBLEServer* pServer) {
+        Serial.println("Client connected");
+        NimBLEDevice::startAdvertising();
     }
-    Serial.println();
-  }
 
-  void onNotify(NimBLECharacteristic* pCharacteristic) override {
-    Serial.print("Characteristic ");
-    Serial.print(pCharacteristic->getUUID().toString().c_str());
-    Serial.println(" notify");
-  }
+    void onDisconnect(NimBLEServer* pServer) {
+        Serial.println("Client disconnected");
+        NimBLEDevice::startAdvertising();
+    }
 
-  void onStatus(NimBLECharacteristic* pCharacteristic, Status status, int code) override {
-    Serial.print("Characteristic ");
-    Serial.print(pCharacteristic->getUUID().toString().c_str());
-    Serial.print(" status: ");
-    Serial.print(status);
-    Serial.print(" code: ");
-    Serial.println(code);
-  }
-
-  void onSubscribe(NimBLECharacteristic* pCharacteristic, ble_gap_conn_desc* desc, uint16_t subValue) override {
-    Serial.print("Client subscribed to ");
-    Serial.print(pCharacteristic->getUUID().toString().c_str());
-    Serial.print(" with value ");
-    Serial.println(subValue);
-  }
+    void onService(NimBLEServer* pServer, NimBLEService* pService) {
+        Serial.print("Service requested: ");
+        Serial.println(pService->getUUID().toString().c_str());
+    }
 };
 
 
 
+// Klasa obsługi callbacków dla charakterystyk
+class characteristicCallbacks : public NimBLECharacteristicCallbacks {
+    // Funkcja wywoływana przy odczycie charakterystyki
+    void onRead(NimBLECharacteristic *pCharacteristic) {
+        Serial.print("Characteristic read: ");
+        Serial.println(pCharacteristic->getUUID().toString().c_str()); // Wypisanie UUID charakterystyki
+        Serial.print("Value: ");
+        Serial.println(pCharacteristic->getValue().c_str()); // Wypisanie wartości charakterystyki jako tekst
+
+        // Wypisanie wartości charakterystyki w formacie hex
+        std::string value = pCharacteristic->getValue();
+        Serial.print("Hex: ");
+        for (size_t i = 0; i < value.length(); ++i) {
+            if (value[i] < 0x10) Serial.print("0");
+            Serial.print(value[i], HEX);
+            Serial.print(" ");
+        }
+        Serial.println();
+    }
+
+    // Funkcja wywoływana przy zapisie charakterystyki
+    void onWrite(NimBLECharacteristic *pCharacteristic) {
+        std::string value = pCharacteristic->getValue(); // Pobranie nowej wartości charakterystyki
+        Serial.print("Characteristic written: ");
+        Serial.println(pCharacteristic->getUUID().toString().c_str()); // Wypisanie UUID charakterystyki
+        Serial.print("New value: ");
+        Serial.println(value.c_str()); // Wypisanie nowej wartości charakterystyki jako tekst
+
+        // Wypisanie nowej wartości charakterystyki w formacie hex
+        Serial.print("Hex: ");
+        for (size_t i = 0; i < value.length(); ++i) {
+            if (value[i] < 0x10) Serial.print("0");
+            Serial.print(value[i], HEX);
+            Serial.print(" ");
+        }
+        Serial.println();
+    }
+
+    // Funkcja wywoływana przy wskazaniu (indicate)
+    void onIndicate(NimBLECharacteristic *pCharacteristic) {
+        Serial.print("Characteristic indicate: ");
+        Serial.println(pCharacteristic->getUUID().toString().c_str()); // Wypisanie UUID charakterystyki
+        Serial.print("Value: ");
+        Serial.println(pCharacteristic->getValue().c_str()); // Wypisanie wartości charakterystyki jako tekst
+
+        // Wypisanie wartości charakterystyki w formacie hex
+        std::string value = pCharacteristic->getValue();
+        Serial.print("Hex: ");
+        for (size_t i = 0; i < value.length(); ++i) {
+            if (value[i] < 0x10) Serial.print("0");
+            Serial.print(value[i], HEX);
+            Serial.print(" ");
+        }
+        Serial.println();
+    }
+
+    // Funkcja wywoływana przy powiadomieniu (notify)
+    void onNotify(NimBLECharacteristic *pCharacteristic) {
+        Serial.print("Characteristic notify: ");
+        Serial.println(pCharacteristic->getUUID().toString().c_str()); // Wypisanie UUID charakterystyki
+        Serial.print("Value: ");
+        Serial.println(pCharacteristic->getValue().c_str()); // Wypisanie wartości charakterystyki jako tekst
+
+        // Wypisanie wartości charakterystyki w formacie hex
+        std::string value = pCharacteristic->getValue();
+        Serial.print("Hex: ");
+        for (size_t i = 0; i < value.length(); ++i) {
+            if (value[i] < 0x10) Serial.print("0");
+            Serial.print(value[i], HEX);
+            Serial.print(" ");
+        }
+        Serial.println();
+    }
+};
 
 
 
+class descriptorCallbacks : public NimBLEDescriptorCallbacks {
+public:
+    // Funkcja wywoływana przy odczycie deskryptora
+    void onRead(NimBLEDescriptor* pDescriptor) override {
+        Serial.print("Descriptor read: ");
+        Serial.println(pDescriptor->getUUID().toString().c_str()); // Wypisanie UUID deskryptora
+        Serial.print("Value: ");
+        std::string value = pDescriptor->getStringValue();
+        Serial.println(value.c_str()); // Wypisanie wartości deskryptora
+
+        Serial.print("Hex: ");
+        for (size_t i = 0; i < value.size(); ++i) {
+            Serial.print(String(value[i], HEX));
+            Serial.print(" ");
+        }
+        Serial.println();
+    }
+
+    // Funkcja wywoływana przy zapisie deskryptora
+    void onWrite(NimBLEDescriptor* pDescriptor) override {
+        std::string value = pDescriptor->getStringValue(); // Pobranie nowej wartości deskryptora
+        Serial.print("Descriptor written: ");
+        Serial.println(pDescriptor->getUUID().toString().c_str()); // Wypisanie UUID deskryptora
+        Serial.print("New value: ");
+        Serial.println(value.c_str()); // Wypisanie nowej wartości deskryptora
+
+        Serial.print("Hex: ");
+        for (size_t i = 0; i < value.size(); ++i) {
+            Serial.print(String(value[i], HEX));
+            Serial.print(" ");
+        }
+        Serial.println();
+    }
+};
 
 
 
@@ -296,6 +336,7 @@ void createGenericAccessService(NimBLEServer* pServer) {
     NimBLECharacteristic* pCharacteristic;
 
     pService = pServer->createService(GENERIC_ACCESS_SERVICE_UUID); // 1800
+    pServer->setCallbacks(new serverCallbacks());
 
     // Dodanie charakterystyk do usługi Generic Access
     pCharacteristic = pService->createCharacteristic(
@@ -303,6 +344,7 @@ void createGenericAccessService(NimBLEServer* pServer) {
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE
     );
     pCharacteristic->setValue("CGM Transmitter");
+    pCharacteristic->setCallbacks(new characteristicCallbacks());
 
     pCharacteristic = pService->createCharacteristic(
         GENERIC_ACCESS_APPEARANCE_UUID,  // 2A01
@@ -310,6 +352,7 @@ void createGenericAccessService(NimBLEServer* pServer) {
     );
     uint16_t appearance = 0; // Ustawienie wartości wyglądu na 0 (wartość domyślna)
     pCharacteristic->setValue((uint8_t*)&appearance, sizeof(appearance));
+    pCharacteristic->setCallbacks(new characteristicCallbacks());
 
     pCharacteristic = pService->createCharacteristic(
         GENERIC_ACCESS_CONN_PARAMS_UUID, // 2A04
@@ -318,6 +361,7 @@ void createGenericAccessService(NimBLEServer* pServer) {
     // Konwertowanie danych na tablicę uint8_t
     const uint8_t peripheralConnData[] = {0x10, 0x00, 0x20, 0x00, 0x00, 0x00, 0x58, 0x02}; // "Minimum Connection Interval: 16\nMaximum Connection Interval: 32\nSlave Latency: 0\nConnection Supervision Timeout Multiplier: 600"
     pCharacteristic->setValue(peripheralConnData, sizeof(peripheralConnData));
+    pCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Uruchomienie usługi Generic Access
     pService->start();
@@ -338,36 +382,42 @@ void createDeviceInformationService(NimBLEServer* pServer) {
         NIMBLE_PROPERTY::READ
     );
     pCharacteristic->setValue("Medtronic");
+    pCharacteristic->setCallbacks(new characteristicCallbacks());
 
     pCharacteristic = pService->createCharacteristic(
         CHARACTERISTIC_UUID_MODEL,
         NIMBLE_PROPERTY::READ
     );
     pCharacteristic->setValue("MMT-7911WW");
+    pCharacteristic->setCallbacks(new characteristicCallbacks());
 
     pCharacteristic = pService->createCharacteristic(
         CHARACTERISTIC_UUID_SERIAL,
         NIMBLE_PROPERTY::READ
     );
     pCharacteristic->setValue("GT1234567M");
+    pCharacteristic->setCallbacks(new characteristicCallbacks());
 
     pCharacteristic = pService->createCharacteristic(
         CHARACTERISTIC_UUID_FIRMWARE,
         NIMBLE_PROPERTY::READ
     );
     pCharacteristic->setValue("1.1A");
+    pCharacteristic->setCallbacks(new characteristicCallbacks());
 
     pCharacteristic = pService->createCharacteristic(
         CHARACTERISTIC_UUID_HARDWARE,
         NIMBLE_PROPERTY::READ
     );
     pCharacteristic->setValue("5C1.0");
+    pCharacteristic->setCallbacks(new characteristicCallbacks());
 
     pCharacteristic = pService->createCharacteristic(
         CHARACTERISTIC_UUID_SOFTWARE,
         NIMBLE_PROPERTY::READ
     );
     pCharacteristic->setValue("1.0A.a69cfcd7");
+    pCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Konwertowanie danych na tablicę uint8_t
     const uint8_t systemIdData[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0xDC, 0x16, 0xA2};
@@ -379,6 +429,7 @@ void createDeviceInformationService(NimBLEServer* pServer) {
     );
     // Ustawianie wartości charakterystyki na dane systemIdData
     pCharacteristic->setValue(const_cast<uint8_t*>(systemIdData), sizeof(systemIdData));
+    pCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Tworzenie charakterystyki Rejestracji i Certyfikatu (REG_CERT)
     pCharacteristic = pService->createCharacteristic(
@@ -387,6 +438,7 @@ void createDeviceInformationService(NimBLEServer* pServer) {
     );
     // Ustawianie pustej wartości dla charakterystyki REG_CERT
     pCharacteristic->setValue("");
+    pCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Konwertowanie danych na tablicę uint8_t
     const uint8_t pnpIdData[] = {0x01, 0xF9, 0x01, 0x00, 0x00, 0x00, 0x01};
@@ -398,6 +450,7 @@ void createDeviceInformationService(NimBLEServer* pServer) {
     );
     // Ustawianie wartości charakterystyki na dane pnpIdData
     pCharacteristic->setValue(const_cast<uint8_t*>(pnpIdData), sizeof(pnpIdData));
+    pCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Uruchomienie usługi
     pService->start();
@@ -416,6 +469,7 @@ void createBatteryService(NimBLEServer* pServer, uint8_t batteryLevel) {
 
     // Ustawianie wartości charakterystyki Battery Level
     pBatteryLevelChar->setValue(&batteryLevel, 1); // Ustawienie poziomu baterii
+    pBatteryLevelChar->setCallbacks(new characteristicCallbacks());
 
     // Tworzenie deskryptora Client Characteristic Configuration (CCC)
     NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
@@ -423,7 +477,8 @@ void createBatteryService(NimBLEServer* pServer, uint8_t batteryLevel) {
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości deskryptora
         2 // Długość deskryptora
     );
-    //pBatteryLevelChar->addDescriptor(pClientCharConfigDesc);
+    pBatteryLevelChar->addDescriptor(pClientCharConfigDesc);
+    pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 
     // Uruchomienie usługi Battery Service
     pBatteryService->start();
@@ -464,6 +519,7 @@ void createCGMMeasurement(NimBLEService* pCGMService, NimBLECharacteristic* pCGM
     );
 
     pCGMMeasurementChar->setValue(cgmMeasurementValue, sizeof(cgmMeasurementValue));
+    //pCGMMeasurementChar->setCallbacks(new characteristicCallbacks());
 
     // Utworzenie deskryptora User Description do charakterystyki CGM Measurement
     NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
@@ -474,6 +530,7 @@ void createCGMMeasurement(NimBLEService* pCGMService, NimBLECharacteristic* pCGM
 
     // Ustawienie wartości deskryptora
     pCharUserDescDesc->setValue("CGM Measurement");
+ 
 
     // Dodanie deskryptora do charakterystyki CGM Measurement
     pCGMMeasurementChar->addDescriptor(pCharUserDescDesc);
@@ -487,6 +544,7 @@ void createCGMMeasurement(NimBLEService* pCGMService, NimBLECharacteristic* pCGM
 
     // Ustawienie wartości deskryptora
     pClientCharConfigDesc->setValue("Client Characteristic Configuration");
+
 }
 
 void createCustomCharacteristic(NimBLEService* pCGMService, NimBLECharacteristic*& pCustomCharacteristic) {
@@ -923,7 +981,7 @@ void setup() {
   NimBLEServer* pServer = NimBLEDevice::createServer();
 
   // Ustawienie callbacków dla zdarzeń połączenia i rozłączenia
-  pServer->setCallbacks(new MyServerCallbacks());
+  pServer->setCallbacks(new serverCallbacks());
 
   // Konfiguracja usługi Generic Access, która zapewnia podstawowe informacje o urządzeniu
   createGenericAccessService(pServer);
@@ -940,10 +998,6 @@ void setup() {
   // Utworzenie charakterystyki CGM Measurement i dodanie do usługi CGM
   createCGMMeasurement(pCGMService, pCGMMeasurementChar);
 
-  // Utworzenie charakterystyki 00000200-0000-1000-0000-009132591325 i dodanie do usługi CGM
-  NimBLECharacteristic* pCustomCharacteristic;
-  createCustomCharacteristic(pCGMService, pCustomCharacteristic);
-
   // Utworzenie charakterystyki CGM Feature i dodanie do usługi CGM
   createCGMFeature(pCGMService, pCGMFeatureChar);
 
@@ -956,20 +1010,24 @@ void setup() {
   // Uworzenie charakterystyki CGM Session Run Time i dodanie do usługi CGM
   createCGMSessionRunTime(pCGMService, pCGMSessionRunTimeChar, true);
 
-  // Uworzenie charakterystyki 00000203-0000-1000-0000-009132591325 i dodanie do usługi CGM
-  createCustomCharacteristic1(pCGMService, pCustomCharacteristic);
-
   // Utworzenie charakterystyki Record Access Control Point
   createRecordAccessControlPoint(pCGMService, pRecordAccessControlPointChar);
 
   // Utworzenie charakterystyki Specific Ops Control Point i dodanie do usługi CGM
   createCGMSpecificOpsControlPoint(pCGMService, pCGMSpecificOpsControlPointChar);
 
+  // Utworzenie charakterystyki 00000200-0000-1000-0000-009132591325 i dodanie do usługi CGM
+  NimBLECharacteristic* pCustomCharacteristic;
+  createCustomCharacteristic(pCGMService, pCustomCharacteristic);
+
   // Utworzenie charakterystyki 00000201-0000-1000-0000-009132591325 i dodanie do usługi CGM
   createCustomCharacteristic2(pCGMService, pCustomCharacteristic);
 
   // Utworzenie charakterystyki 00000202-0000-1000-0000-009132591325 i dodanie do usługi CGM
   createCustomCharacteristic3(pCGMService, pCustomCharacteristic);
+
+    // Uworzenie charakterystyki 00000203-0000-1000-0000-009132591325 i dodanie do usługi CGM
+  createCustomCharacteristic1(pCGMService, pCustomCharacteristic);
 
   // Uruchomienie usługi CGM
   pCGMService->start();
