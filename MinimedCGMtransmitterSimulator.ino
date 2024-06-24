@@ -21,6 +21,10 @@
 #define GENERIC_ACCESS_APPEARANCE_UUID    "00002A01-0000-1000-8000-00805F9B34FB" // UUID dla charakterystyki Appearance
 #define GENERIC_ACCESS_CONN_PARAMS_UUID   "00002A04-0000-1000-8000-00805F9B34FB" // UUID dla charakterystyki Connection Parameters
 
+// UUID dla usługi i charakterystyk Generic Attribute
+#define GENERIC_ATTRIBUTE_SERVICE_UUID        "00001801-0000-1000-8000-00805F9B34FB"
+#define GENERIC_ATTRIBUTE_SERVICE_CHANGED_UUID "00002A05-0000-1000-8000-00805F9B34FB"
+
 // UUID dla usługi i charakterystyk Battery Service
 #define BATTERY_SERVICE_UUID "180F" // UUID dla usługi Battery Service
 #define BATTERY_LEVEL_CHAR_UUID "2A19" // UUID dla charakterystyki Battery Level
@@ -189,11 +193,6 @@ class serverCallbacks : public NimBLEServerCallbacks {
         Serial.println("Client disconnected");
         NimBLEDevice::startAdvertising();
     }
-
-    void onService(NimBLEServer* pServer, NimBLEService* pService) {
-        Serial.print("Service requested: ");
-        Serial.println(pService->getUUID().toString().c_str());
-    }
 };
 
 
@@ -202,7 +201,9 @@ class serverCallbacks : public NimBLEServerCallbacks {
 class characteristicCallbacks : public NimBLECharacteristicCallbacks {
     // Funkcja wywoływana przy odczycie charakterystyki
     void onRead(NimBLECharacteristic *pCharacteristic) {
-        Serial.print("Characteristic read: ");
+        Serial.print("Service UUID: ");
+        Serial.println(pCharacteristic->getService()->getUUID().toString().c_str()); // Wypisanie UUID usługi, do której należy charakterystyka
+        Serial.print("Characteristic UUID: ");
         Serial.println(pCharacteristic->getUUID().toString().c_str()); // Wypisanie UUID charakterystyki
         Serial.print("Value: ");
         Serial.println(pCharacteristic->getValue().c_str()); // Wypisanie wartości charakterystyki jako tekst
@@ -279,7 +280,7 @@ class descriptorCallbacks : public NimBLEDescriptorCallbacks {
 public:
     // Funkcja wywoływana przy odczycie deskryptora
     void onRead(NimBLEDescriptor* pDescriptor) override {
-        Serial.print("Descriptor read: ");
+        Serial.print("Descriptor UUID: ");
         Serial.println(pDescriptor->getUUID().toString().c_str()); // Wypisanie UUID deskryptora
         Serial.print("Value: ");
         std::string value = pDescriptor->getStringValue();
@@ -330,13 +331,41 @@ uint16_t calculateCRC(const uint8_t *data, size_t length) {
     return crc;
 }
 
+void createGenericAttributeService(NimBLEServer* pServer) {
+    NimBLEService* pService;
+    NimBLECharacteristic* pCharacteristic;
+
+    pService = pServer->createService(GENERIC_ATTRIBUTE_SERVICE_UUID); // 1801
+
+    // Dodanie charakterystyki Service Changed do usługi Generic Attribute
+    pCharacteristic = pService->createCharacteristic(
+        GENERIC_ATTRIBUTE_SERVICE_CHANGED_UUID, // 2A05
+        NIMBLE_PROPERTY::INDICATE | NIMBLE_PROPERTY::READ                                                       // dopisałem READ
+    );
+    pCharacteristic->setValue("Service Changed");
+    pCharacteristic->setCallbacks(new characteristicCallbacks());
+
+    // Dodanie deskryptora Client Characteristic Configuration
+    NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
+        "2902", // UUID deskryptora CCC
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości deskryptora
+        2 // Długość deskryptora
+    );
+    uint8_t value[] = {0x02, 0x00}; // Wartość początkowa deskryptora
+    pClientCharConfigDesc->setValue(value, sizeof(value));
+    //pClientCharConfigDesc->setValue("Client Characteristic Configuration");
+    pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
+
+    // Uruchomienie usługi Generic Attribute
+    pService->start();
+}
 
 void createGenericAccessService(NimBLEServer* pServer) {
     NimBLEService* pService;
     NimBLECharacteristic* pCharacteristic;
 
     pService = pServer->createService(GENERIC_ACCESS_SERVICE_UUID); // 1800
-    pServer->setCallbacks(new serverCallbacks());
+    //pServer->setCallbacks(new serverCallbacks());
 
     // Dodanie charakterystyk do usługi Generic Access
     pCharacteristic = pService->createCharacteristic(
@@ -515,11 +544,11 @@ void createCGMMeasurement(NimBLEService* pCGMService, NimBLECharacteristic* pCGM
     // Tworzenie charakterystyki CGM Measurement dla 2AA7
     pCGMMeasurementChar = pCGMService->createCharacteristic(
         CGM_MEASUREMENT_CHAR_UUID,
-        NIMBLE_PROPERTY::NOTIFY | NIMBLE_PROPERTY::INDICATE //| NIMBLE_PROPERTY::READ // Dodałem READ, aby podejrzeć tablicę na telefonie
+        NIMBLE_PROPERTY::NOTIFY | NIMBLE_PROPERTY::INDICATE | NIMBLE_PROPERTY::READ // Dodałem READ, aby podejrzeć tablicę na telefonie
     );
 
     pCGMMeasurementChar->setValue(cgmMeasurementValue, sizeof(cgmMeasurementValue));
-    //pCGMMeasurementChar->setCallbacks(new characteristicCallbacks());
+    pCGMMeasurementChar->setCallbacks(new characteristicCallbacks());
 
     // Utworzenie deskryptora User Description do charakterystyki CGM Measurement
     NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
@@ -531,7 +560,6 @@ void createCGMMeasurement(NimBLEService* pCGMService, NimBLECharacteristic* pCGM
     // Ustawienie wartości deskryptora
     pCharUserDescDesc->setValue("CGM Measurement");
  
-
     // Dodanie deskryptora do charakterystyki CGM Measurement
     pCGMMeasurementChar->addDescriptor(pCharUserDescDesc);
 
@@ -553,6 +581,7 @@ void createCustomCharacteristic(NimBLEService* pCGMService, NimBLECharacteristic
         "00000200-0000-1000-0000-009132591325",
         NIMBLE_PROPERTY::READ
     );
+    pCustomCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Utworzenie deskryptora User Description o UUID 2901 do charakterystyki
     NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
@@ -635,6 +664,7 @@ void createCGMFeature(NimBLEService* pCGMService, NimBLECharacteristic* pCGMFeat
 
     // Ustawienie wartości charakterystyki
     pCGMFeatureChar->setValue(cgmFeatureValue, sizeof(cgmFeatureValue));
+    pCGMFeatureChar->setCallbacks(new characteristicCallbacks());
 
     // Dodanie deskryptora do charakterystyki CGM Feature
     NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
@@ -673,6 +703,7 @@ void createCGMStatus(NimBLEService* pCGMService, NimBLECharacteristic* pCGMStatu
 
     // Ustawienie wartości charakterystyki
     pCGMStatusChar->setValue(cgmStatusValue, sizeof(cgmStatusValue));
+    pCGMStatusChar->setCallbacks(new characteristicCallbacks());
 
     // Dodanie deskryptora do charakterystyki CGM Status
     NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
@@ -718,6 +749,7 @@ void createCGMSessionStartTime(NimBLEService* pCGMService, NimBLECharacteristic*
 
     // Ustawienie wartości początkowej dla charakterystyki
     pCGMSessionStartTimeChar->setValue(sessionStartTimeValue, sizeof(sessionStartTimeValue));
+    pCGMSessionStartTimeChar->setCallbacks(new characteristicCallbacks());
 
     // Utworzenie deskryptora User Description do charakterystyki CGM Session Start Time
     /*NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
@@ -759,6 +791,7 @@ void createCGMSessionRunTime(NimBLEService* pCGMService, NimBLECharacteristic*& 
 
     // Ustawienie wartości początkowej dla charakterystyki
     pCGMSessionRunTimeChar->setValue(sessionRunTimeValue, e2eCRCSupported ? 4 : 2);
+    pCGMSessionRunTimeChar->setCallbacks(new characteristicCallbacks());
 
     // Utworzenie deskryptora Client Characteristic Configuration
     NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
@@ -778,6 +811,7 @@ void createCustomCharacteristic1(NimBLEService* pCGMService, NimBLECharacteristi
         "00000203-0000-1000-0000-009132591325",
         NIMBLE_PROPERTY::INDICATE
     );
+    pCustomCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Tworzenie deskryptora Client Characteristic Configuration (CCC) dla charakterystyki
     NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
@@ -793,6 +827,7 @@ void createRecordAccessControlPoint(NimBLEService* pCGMService, NimBLECharacteri
         RECORD_ACCESS_CONTROL_POINT_CHAR_UUID, // UUID charakterystyki Record Access Control Point
         NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::INDICATE // Właściwości: zapis i wskazywanie
     );
+    pRecordAccessControlPointChar->setCallbacks(new characteristicCallbacks());
 
     // Tworzenie deskryptora Client Characteristic Configuration
     pClientCharConfigDesc = new NimBLEDescriptor(
@@ -812,6 +847,7 @@ void createCGMSpecificOpsControlPoint(NimBLEService* pCGMService, NimBLECharacte
         CGM_SPECIFIC_OPS_CONTROL_POINT_CHAR_UUID, // UUID charakterystyki Record Access Control Point
         NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::INDICATE // Właściwości: zapis i wskazywanie
     );
+    pCGMSpecificOpsControlPointChar->setCallbacks(new characteristicCallbacks());
 
     // Tworzenie deskryptora Client Characteristic Configuration
     pClientCharConfigDesc = new NimBLEDescriptor(
@@ -831,6 +867,7 @@ void createCustomService(NimBLEServer* pServer, NimBLEService*& pCustomService) 
         "0000fe82-0000-1000-0000-009132591325", // UUID charakterystyki
         NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY // Właściwości: zapis i powiadamianie
     );
+    pCustomCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Tworzenie deskryptora User Description dla charakterystyki
     NimBLEDescriptor* pCharUserDescDesc = new NimBLEDescriptor(
@@ -866,6 +903,7 @@ void createCustomService1(NimBLEServer* pServer, NimBLEService*& pCustomService)
         "C774EDAC-E573-45E1-97C6-8B5C18CC571A",
         NIMBLE_PROPERTY::INDICATE // Właściwość: wskazywanie
     );
+    pIndicateCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Tworzenie deskryptora Client Characteristic Configuration dla tej charakterystyki
     NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
@@ -879,12 +917,14 @@ void createCustomService1(NimBLEServer* pServer, NimBLEService*& pCustomService)
         "DE3E5221-1308-439C-A13A-884DDC387CA7",
         NIMBLE_PROPERTY::READ // Właściwość: odczyt
     );
+    pReadCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Tworzenie trzeciej charakterystyki z UUID 8484039E-97D3-40C0-BB55-C70C17BADAe2
     NimBLECharacteristic* pWriteCharacteristic = pCustomService->createCharacteristic(
         "8484039E-97D3-40C0-BB55-C70C17BADAe2",
         NIMBLE_PROPERTY::WRITE // Właściwość: zapis
     );
+    pWriteCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Uruchomienie usługi Custom Service
     pCustomService->start();
@@ -899,6 +939,7 @@ void createCustomService2(NimBLEServer* pServer, NimBLEService*& pCustomService)
         "2A52", // UUID charakterystyki
         NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::INDICATE // Właściwości: zapis i wskazywanie
     );
+    pRecordAccessControlPointChar->setCallbacks(new characteristicCallbacks());
 
     // Tworzenie deskryptora Client Characteristic Configuration dla tej charakterystyki
     NimBLEDescriptor* pClientCharConfigDesc1 = new NimBLEDescriptor(
@@ -912,6 +953,7 @@ void createCustomService2(NimBLEServer* pServer, NimBLEService*& pCustomService)
         "00000360-0000-1000-0000-009132591325", // UUID charakterystyki
         NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::INDICATE // Właściwości: zapis i wskazywanie
     );
+    pWriteIndicateCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Tworzenie deskryptora Client Characteristic Configuration dla tej charakterystyki
     NimBLEDescriptor* pClientCharConfigDesc2 = new NimBLEDescriptor(
@@ -925,6 +967,7 @@ void createCustomService2(NimBLEServer* pServer, NimBLEService*& pCustomService)
         "00000350-0000-1000-0000-009132591325", // UUID charakterystyki
         NIMBLE_PROPERTY::NOTIFY // Właściwość: powiadamianie
     );
+    pNotifyCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Tworzenie deskryptora Client Characteristic Configuration dla tej charakterystyki
     NimBLEDescriptor* pClientCharConfigDesc3 = new NimBLEDescriptor(
@@ -943,6 +986,7 @@ void createCustomCharacteristic2(NimBLEService* pCGMService, NimBLECharacteristi
         "00000201-0000-1000-0000-009132591325",
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::INDICATE
     );
+    pCustomCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Tworzenie deskryptora Client Characteristic Configuration (CCC) dla charakterystyki
     NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
@@ -958,6 +1002,7 @@ void createCustomCharacteristic3(NimBLEService* pCGMService, NimBLECharacteristi
         "00000202-0000-1000-0000-009132591325",
         NIMBLE_PROPERTY::INDICATE
     );
+    pCustomCharacteristic->setCallbacks(new characteristicCallbacks());
 
     // Tworzenie deskryptora Client Characteristic Configuration (CCC) dla charakterystyki
     NimBLEDescriptor* pClientCharConfigDesc = new NimBLEDescriptor(
@@ -985,6 +1030,8 @@ void setup() {
 
   // Konfiguracja usługi Generic Access, która zapewnia podstawowe informacje o urządzeniu
   createGenericAccessService(pServer);
+
+  createGenericAttributeService(pServer);
 
   // Konfiguracja usługi Device Information, która dostarcza informacje szczegółowe o urządzeniu
   createDeviceInformationService(pServer);
