@@ -205,12 +205,12 @@ class characteristicCallbacks : public NimBLECharacteristicCallbacks {
         Serial.println(pCharacteristic->getService()->getUUID().toString().c_str()); // Wypisanie UUID usługi, do której należy charakterystyka
         Serial.print("Characteristic UUID: ");
         Serial.println(pCharacteristic->getUUID().toString().c_str()); // Wypisanie UUID charakterystyki
-        Serial.print("Value: ");
+        Serial.print("   Value: ");
         Serial.println(pCharacteristic->getValue().c_str()); // Wypisanie wartości charakterystyki jako tekst
 
         // Wypisanie wartości charakterystyki w formacie hex
         std::string value = pCharacteristic->getValue();
-        Serial.print("Hex: ");
+        Serial.print("   Hex: ");
         for (size_t i = 0; i < value.length(); ++i) {
             if (value[i] < 0x10) Serial.print("0");
             Serial.print(value[i], HEX);
@@ -224,11 +224,11 @@ class characteristicCallbacks : public NimBLECharacteristicCallbacks {
         std::string value = pCharacteristic->getValue(); // Pobranie nowej wartości charakterystyki
         Serial.print("Characteristic written: ");
         Serial.println(pCharacteristic->getUUID().toString().c_str()); // Wypisanie UUID charakterystyki
-        Serial.print("New value: ");
+        Serial.print("   New value: ");
         Serial.println(value.c_str()); // Wypisanie nowej wartości charakterystyki jako tekst
 
         // Wypisanie nowej wartości charakterystyki w formacie hex
-        Serial.print("Hex: ");
+        Serial.print("   Hex: ");
         for (size_t i = 0; i < value.length(); ++i) {
             if (value[i] < 0x10) Serial.print("0");
             Serial.print(value[i], HEX);
@@ -241,12 +241,12 @@ class characteristicCallbacks : public NimBLECharacteristicCallbacks {
     void onIndicate(NimBLECharacteristic *pCharacteristic) {
         Serial.print("Characteristic indicate: ");
         Serial.println(pCharacteristic->getUUID().toString().c_str()); // Wypisanie UUID charakterystyki
-        Serial.print("Value: ");
+        Serial.print("   Value: ");
         Serial.println(pCharacteristic->getValue().c_str()); // Wypisanie wartości charakterystyki jako tekst
 
         // Wypisanie wartości charakterystyki w formacie hex
         std::string value = pCharacteristic->getValue();
-        Serial.print("Hex: ");
+        Serial.print("   Hex: ");
         for (size_t i = 0; i < value.length(); ++i) {
             if (value[i] < 0x10) Serial.print("0");
             Serial.print(value[i], HEX);
@@ -259,12 +259,12 @@ class characteristicCallbacks : public NimBLECharacteristicCallbacks {
     void onNotify(NimBLECharacteristic *pCharacteristic) {
         Serial.print("Characteristic notify: ");
         Serial.println(pCharacteristic->getUUID().toString().c_str()); // Wypisanie UUID charakterystyki
-        Serial.print("Value: ");
+        Serial.print("   Value: ");
         Serial.println(pCharacteristic->getValue().c_str()); // Wypisanie wartości charakterystyki jako tekst
 
         // Wypisanie wartości charakterystyki w formacie hex
         std::string value = pCharacteristic->getValue();
-        Serial.print("Hex: ");
+        Serial.print("   Hex: ");
         for (size_t i = 0; i < value.length(); ++i) {
             if (value[i] < 0x10) Serial.print("0");
             Serial.print(value[i], HEX);
@@ -282,34 +282,38 @@ public:
     void onRead(NimBLEDescriptor* pDescriptor) override {
         Serial.print("Descriptor UUID: ");
         Serial.println(pDescriptor->getUUID().toString().c_str()); // Wypisanie UUID deskryptora
-        Serial.print("Value: ");
+
         std::string value = pDescriptor->getStringValue();
+        Serial.print("      Value: ");
         Serial.println(value.c_str()); // Wypisanie wartości deskryptora
 
-        Serial.print("Hex: ");
-        for (size_t i = 0; i < value.size(); ++i) {
-            Serial.print(String(value[i], HEX));
-            Serial.print(" ");
-        }
-        Serial.println();
+        printHex(value); // Wypisanie wartości jako hex
     }
 
     // Funkcja wywoływana przy zapisie deskryptora
     void onWrite(NimBLEDescriptor* pDescriptor) override {
         std::string value = pDescriptor->getStringValue(); // Pobranie nowej wartości deskryptora
+
         Serial.print("Descriptor written: ");
         Serial.println(pDescriptor->getUUID().toString().c_str()); // Wypisanie UUID deskryptora
-        Serial.print("New value: ");
+        Serial.print("      New value: ");
         Serial.println(value.c_str()); // Wypisanie nowej wartości deskryptora
 
-        Serial.print("Hex: ");
+        printHex(value); // Wypisanie wartości jako hex
+    }
+
+private:
+    void printHex(const std::string& value) {
+        Serial.print("      Hex: ");
         for (size_t i = 0; i < value.size(); ++i) {
+            if (value[i] < 16) Serial.print("0"); // Dodanie zera wiodącego dla jednocyfrowych wartości
             Serial.print(String(value[i], HEX));
             Serial.print(" ");
         }
         Serial.println();
     }
 };
+
 
 
 
@@ -353,7 +357,7 @@ void createGenericAttributeService(NimBLEServer* pServer) {
     );
     uint8_t value[] = {0x02, 0x00}; // Wartość początkowa deskryptora
     pClientCharConfigDesc->setValue(value, sizeof(value));
-    //pClientCharConfigDesc->setValue("Client Characteristic Configuration");
+    pCharacteristic->addDescriptor(pClientCharConfigDesc);
     pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 
     // Uruchomienie usługi Generic Attribute
@@ -365,7 +369,6 @@ void createGenericAccessService(NimBLEServer* pServer) {
     NimBLECharacteristic* pCharacteristic;
 
     pService = pServer->createService(GENERIC_ACCESS_SERVICE_UUID); // 1800
-    //pServer->setCallbacks(new serverCallbacks());
 
     // Dodanie charakterystyk do usługi Generic Access
     pCharacteristic = pService->createCharacteristic(
@@ -400,9 +403,6 @@ void createDeviceInformationService(NimBLEServer* pServer) {
     NimBLEService* pService;
     NimBLECharacteristic* pCharacteristic;
 
-    /***************************************************
-     * Utworzenie usługi Device Information
-     ***************************************************/
     pService = pServer->createService(SERVICE_UUID);
 
     // Dodanie charakterystyk do usługi
@@ -506,6 +506,9 @@ void createBatteryService(NimBLEServer* pServer, uint8_t batteryLevel) {
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości deskryptora
         2 // Długość deskryptora
     );
+    // Ustawienie wartości deskryptora
+    uint8_t value[] = {0x02, 0x00}; // Wartość początkowa deskryptora
+    pClientCharConfigDesc->setValue(value, sizeof(value));
     pBatteryLevelChar->addDescriptor(pClientCharConfigDesc);
     pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 
@@ -569,9 +572,9 @@ void createCGMMeasurement(NimBLEService* pCGMService, NimBLECharacteristic* pCGM
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE,  // Właściwości deskryptora
         2  // Maksymalna długość deskryptora
     );
-
     // Ustawienie wartości deskryptora
-    pClientCharConfigDesc->setValue("Client Characteristic Configuration");
+    pClientCharConfigDesc->setValue("");
+    pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 
 }
 
@@ -799,9 +802,9 @@ void createCGMSessionRunTime(NimBLEService* pCGMService, NimBLECharacteristic*& 
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości deskryptora
         2 // Maksymalna długość deskryptora
     );
-
     // Ustawienie wartości deskryptora
-    pClientCharConfigDesc->setValue("Client Characteristic Configuration");
+    pClientCharConfigDesc->setValue("");
+    pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 }
 
 
@@ -819,6 +822,9 @@ void createCustomCharacteristic1(NimBLEService* pCGMService, NimBLECharacteristi
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
         2 // Długość deskryptora
     );
+    // Ustawienie wartości deskryptora
+    pClientCharConfigDesc->setValue("");
+    pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 }
 
 void createRecordAccessControlPoint(NimBLEService* pCGMService, NimBLECharacteristic*& pRecordAccessControlPointChar) {
@@ -835,10 +841,9 @@ void createRecordAccessControlPoint(NimBLEService* pCGMService, NimBLECharacteri
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
         2 // Długość deskryptora
     );
-
-    // Ustawienie wartości deskryptora Client Characteristic Configuration
-    //uint8_t cccValue[] = {0x00, 0x00}; // Wartość początkowa deskryptora
-    //pClientCharConfigDesc->setValue(cccValue, sizeof(cccValue));
+    // Ustawienie wartości deskryptora
+    pClientCharConfigDesc->setValue("");
+    pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 }
 
 void createCGMSpecificOpsControlPoint(NimBLEService* pCGMService, NimBLECharacteristic*& pCGMSpecificOpsControlPointChar) {
@@ -855,6 +860,9 @@ void createCGMSpecificOpsControlPoint(NimBLEService* pCGMService, NimBLECharacte
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
         2 // Długość deskryptora
     );
+    // Ustawienie wartości deskryptora
+    pClientCharConfigDesc->setValue("");
+    pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 }
 
 
@@ -886,8 +894,10 @@ void createCustomService(NimBLEServer* pServer, NimBLEService*& pCustomService) 
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
         2 // Długość deskryptora
     );
-    uint8_t cccValue[] = {0x00, 0x00}; // Wartość początkowa deskryptora
-    pClientCharConfigDesc->setValue(cccValue, sizeof(cccValue));
+    // Ustawienie wartości deskryptora
+    uint8_t value[] = {0x00, 0x00}; // Wartość początkowa deskryptora
+    pClientCharConfigDesc->setValue(value, sizeof(value));
+    pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 
     // Uruchomienie usługi Custom Service
     pCustomService->start();
@@ -911,6 +921,9 @@ void createCustomService1(NimBLEServer* pServer, NimBLEService*& pCustomService)
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
         2 // Długość deskryptora
     );
+    // Ustawienie wartości deskryptora
+    pClientCharConfigDesc->setValue("");
+    pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 
     // Tworzenie drugiej charakterystyki z UUID DE3E5221-1308-439C-A13A-884DDC387CA7
     NimBLECharacteristic* pReadCharacteristic = pCustomService->createCharacteristic(
@@ -947,6 +960,9 @@ void createCustomService2(NimBLEServer* pServer, NimBLEService*& pCustomService)
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
         2 // Długość deskryptora
     );
+    // Ustawienie wartości deskryptora
+    pClientCharConfigDesc->setValue("");
+    pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 
     // Tworzenie drugiej charakterystyki z UUID 00000360-0000-1000-0000-009132591325
     NimBLECharacteristic* pWriteIndicateCharacteristic = pCustomService->createCharacteristic(
@@ -961,6 +977,9 @@ void createCustomService2(NimBLEServer* pServer, NimBLEService*& pCustomService)
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
         2 // Długość deskryptora
     );
+    // Ustawienie wartości deskryptora
+    pClientCharConfigDesc->setValue("");
+    pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 
     // Tworzenie trzeciej charakterystyki z UUID 00000350-0000-1000-0000-009132591325
     NimBLECharacteristic* pNotifyCharacteristic = pCustomService->createCharacteristic(
@@ -975,6 +994,9 @@ void createCustomService2(NimBLEServer* pServer, NimBLEService*& pCustomService)
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
         2 // Długość deskryptora
     );
+    // Ustawienie wartości deskryptora
+    pClientCharConfigDesc->setValue("");
+    pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 
     // Uruchomienie usługi Custom Service
     pCustomService->start();
@@ -994,6 +1016,9 @@ void createCustomCharacteristic2(NimBLEService* pCGMService, NimBLECharacteristi
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
         2 // Długość deskryptora
     );
+    // Ustawienie wartości deskryptora
+    pClientCharConfigDesc->setValue("");
+    pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 }
 
 void createCustomCharacteristic3(NimBLEService* pCGMService, NimBLECharacteristic*& pCustomCharacteristic) {
@@ -1010,6 +1035,9 @@ void createCustomCharacteristic3(NimBLEService* pCGMService, NimBLECharacteristi
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE, // Właściwości: odczyt i zapis
         2 // Długość deskryptora
     );
+    // Ustawienie wartości deskryptora
+    pClientCharConfigDesc->setValue("");
+    pClientCharConfigDesc->setCallbacks(new descriptorCallbacks());
 }
 
 
